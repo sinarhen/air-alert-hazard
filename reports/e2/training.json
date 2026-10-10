@@ -1,0 +1,386 @@
+{
+  "any-start/main": {
+    "train_rows": 1638559,
+    "events": 69201,
+    "champion": "lightgbm",
+    "val_log_loss": {
+      "lightgbm": 0.20442165784008376,
+      "logistic": 0.2183146520264712
+    },
+    "temperature": 0.9145915769508774,
+    "trials": [
+      {
+        "num_leaves": 15,
+        "min_data_in_leaf": 200,
+        "rounds": 230,
+        "val_logloss": 0.20547999488474475
+      },
+      {
+        "num_leaves": 15,
+        "min_data_in_leaf": 1000,
+        "rounds": 216,
+        "val_logloss": 0.2063377040886666
+      },
+      {
+        "num_leaves": 31,
+        "min_data_in_leaf": 200,
+        "rounds": 220,
+        "val_logloss": 0.2070247689401906
+      },
+      {
+        "num_leaves": 31,
+        "min_data_in_leaf": 1000,
+        "rounds": 161,
+        "val_logloss": 0.20732174001580098
+      },
+      {
+        "num_leaves": 63,
+        "min_data_in_leaf": 200,
+        "rounds": 117,
+        "val_logloss": 0.20712481969633473
+      },
+      {
+        "num_leaves": 63,
+        "min_data_in_leaf": 1000,
+        "rounds": 59,
+        "val_logloss": 0.2073249348107366
+      }
+    ]
+  },
+  "any-start/new_only": {
+    "train_rows": 48007,
+    "events": 3659,
+    "champion": "lightgbm",
+    "val_log_loss": {
+      "lightgbm": 0.21098946100007201,
+      "logistic": 0.21828829310025885
+    },
+    "temperature": 0.8811616059423825,
+    "trials": [
+      {
+        "num_leaves": 15,
+        "min_data_in_leaf": 200,
+        "rounds": 40,
+        "val_logloss": 0.2151138093445643
+      },
+      {
+        "num_leaves": 15,
+        "min_data_in_leaf": 1000,
+        "rounds": 40,
+        "val_logloss": 0.21332019836511404
+      },
+      {
+        "num_leaves": 31,
+        "min_data_in_leaf": 200,
+        "rounds": 38,
+        "val_logloss": 0.21611611110670817
+      },
+      {
+        "num_leaves": 31,
+        "min_data_in_leaf": 1000,
+        "rounds": 40,
+        "val_logloss": 0.21381823272630854
+      },
+      {
+        "num_leaves": 63,
+        "min_data_in_leaf": 200,
+        "rounds": 26,
+        "val_logloss": 0.21784016123346406
+      },
+      {
+        "num_leaves": 63,
+        "min_data_in_leaf": 1000,
+        "rounds": 40,
+        "val_logloss": 0.21381823307593592
+      }
+    ]
+  },
+  "any-start/old_only": {
+    "train_rows": 1590552,
+    "events": 65542,
+    "champion": "lightgbm",
+    "val_log_loss": {
+      "lightgbm": 0.2116056164635954,
+      "logistic": 0.22405958689985633
+    },
+    "temperature": 1.1708912218010163,
+    "trials": [
+      {
+        "num_leaves": 15,
+        "min_data_in_leaf": 200,
+        "rounds": 340,
+        "val_logloss": 0.2171689849989857
+      },
+      {
+        "num_leaves": 15,
+        "min_data_in_leaf": 1000,
+        "rounds": 232,
+        "val_logloss": 0.2174968869356782
+      },
+      {
+        "num_leaves": 31,
+        "min_data_in_leaf": 200,
+        "rounds": 319,
+        "val_logloss": 0.2169514236714742
+      },
+      {
+        "num_leaves": 31,
+        "min_data_in_leaf": 1000,
+        "rounds": 584,
+        "val_logloss": 0.21639717468120676
+      },
+      {
+        "num_leaves": 63,
+        "min_data_in_leaf": 200,
+        "rounds": 318,
+        "val_logloss": 0.21544564433557545
+      },
+      {
+        "num_leaves": 63,
+        "min_data_in_leaf": 1000,
+        "rounds": 724,
+        "val_logloss": 0.2160846549307905
+      }
+    ]
+  },
+  "any-end/main": {
+    "train_rows": 2304125,
+    "events": 138036,
+    "champion": "lightgbm",
+    "val_log_loss": {
+      "lightgbm": 0.22916393787720052,
+      "logistic": 0.23268627497846417
+    },
+    "temperature": 0.9622993341754013,
+    "trials": [
+      {
+        "num_leaves": 15,
+        "min_data_in_leaf": 200,
+        "rounds": 198,
+        "val_logloss": 0.22962611030294283
+      },
+      {
+        "num_leaves": 15,
+        "min_data_in_leaf": 1000,
+        "rounds": 157,
+        "val_logloss": 0.23004435909571244
+      },
+      {
+        "num_leaves": 31,
+        "min_data_in_leaf": 200,
+        "rounds": 93,
+        "val_logloss": 0.22967846791224558
+      },
+      {
+        "num_leaves": 31,
+        "min_data_in_leaf": 1000,
+        "rounds": 110,
+        "val_logloss": 0.2295282716685362
+      },
+      {
+        "num_leaves": 63,
+        "min_data_in_leaf": 200,
+        "rounds": 48,
+        "val_logloss": 0.22944036246356786
+      },
+      {
+        "num_leaves": 63,
+        "min_data_in_leaf": 1000,
+        "rounds": 48,
+        "val_logloss": 0.22945464725527379
+      }
+    ]
+  },
+  "any-end/new_only": {
+    "train_rows": 148085,
+    "events": 10360,
+    "champion": "lightgbm",
+    "val_log_loss": {
+      "lightgbm": 0.2311640456187528,
+      "logistic": 0.23196788818314065
+    },
+    "temperature": 0.9316746800398437,
+    "trials": [
+      {
+        "num_leaves": 15,
+        "min_data_in_leaf": 200,
+        "rounds": 39,
+        "val_logloss": 0.23211954224541717
+      },
+      {
+        "num_leaves": 15,
+        "min_data_in_leaf": 1000,
+        "rounds": 44,
+        "val_logloss": 0.23233471151687107
+      },
+      {
+        "num_leaves": 31,
+        "min_data_in_leaf": 200,
+        "rounds": 30,
+        "val_logloss": 0.2341186582684485
+      },
+      {
+        "num_leaves": 31,
+        "min_data_in_leaf": 1000,
+        "rounds": 34,
+        "val_logloss": 0.2342781307382712
+      },
+      {
+        "num_leaves": 63,
+        "min_data_in_leaf": 200,
+        "rounds": 22,
+        "val_logloss": 0.23682290958264768
+      },
+      {
+        "num_leaves": 63,
+        "min_data_in_leaf": 1000,
+        "rounds": 27,
+        "val_logloss": 0.2365484010825399
+      }
+    ]
+  },
+  "any-end/old_only": {
+    "train_rows": 2156040,
+    "events": 127676,
+    "champion": "lightgbm",
+    "val_log_loss": {
+      "lightgbm": 0.23195755478757604,
+      "logistic": 0.23989883628920564
+    },
+    "temperature": 0.9600545605187591,
+    "trials": [
+      {
+        "num_leaves": 15,
+        "min_data_in_leaf": 200,
+        "rounds": 46,
+        "val_logloss": 0.2322711050003046
+      },
+      {
+        "num_leaves": 15,
+        "min_data_in_leaf": 1000,
+        "rounds": 46,
+        "val_logloss": 0.23229049505262656
+      },
+      {
+        "num_leaves": 31,
+        "min_data_in_leaf": 200,
+        "rounds": 46,
+        "val_logloss": 0.23330781435153025
+      },
+      {
+        "num_leaves": 31,
+        "min_data_in_leaf": 1000,
+        "rounds": 46,
+        "val_logloss": 0.23331082694804967
+      },
+      {
+        "num_leaves": 63,
+        "min_data_in_leaf": 200,
+        "rounds": 30,
+        "val_logloss": 0.23337133664581253
+      },
+      {
+        "num_leaves": 63,
+        "min_data_in_leaf": 1000,
+        "rounds": 36,
+        "val_logloss": 0.23329112370330898
+      }
+    ]
+  },
+  "red-start/main": {
+    "train_rows": 109170,
+    "events": 3079,
+    "champion": "logistic",
+    "val_log_loss": {
+      "lightgbm": 0.09175179101912667,
+      "logistic": 0.08671089094612265
+    },
+    "temperature": 0.8919040679524637,
+    "trials": [
+      {
+        "num_leaves": 15,
+        "min_data_in_leaf": 200,
+        "rounds": 6,
+        "val_logloss": 0.09453081596224018
+      },
+      {
+        "num_leaves": 15,
+        "min_data_in_leaf": 1000,
+        "rounds": 49,
+        "val_logloss": 0.09335755286609393
+      },
+      {
+        "num_leaves": 31,
+        "min_data_in_leaf": 200,
+        "rounds": 5,
+        "val_logloss": 0.0942895902928752
+      },
+      {
+        "num_leaves": 31,
+        "min_data_in_leaf": 1000,
+        "rounds": 5,
+        "val_logloss": 0.09480020233623948
+      },
+      {
+        "num_leaves": 63,
+        "min_data_in_leaf": 200,
+        "rounds": 4,
+        "val_logloss": 0.09503444789805235
+      },
+      {
+        "num_leaves": 63,
+        "min_data_in_leaf": 1000,
+        "rounds": 31,
+        "val_logloss": 0.09499955379540302
+      }
+    ]
+  },
+  "red-end/main": {
+    "train_rows": 98616,
+    "events": 4026,
+    "champion": "lightgbm",
+    "val_log_loss": {
+      "lightgbm": 0.18989735074098849,
+      "logistic": 0.21179938005774046
+    },
+    "temperature": 0.9912909242403515,
+    "trials": [
+      {
+        "num_leaves": 15,
+        "min_data_in_leaf": 200,
+        "rounds": 9,
+        "val_logloss": 0.1912298701030954
+      },
+      {
+        "num_leaves": 15,
+        "min_data_in_leaf": 1000,
+        "rounds": 14,
+        "val_logloss": 0.19024083746827314
+      },
+      {
+        "num_leaves": 31,
+        "min_data_in_leaf": 200,
+        "rounds": 7,
+        "val_logloss": 0.19108855175799455
+      },
+      {
+        "num_leaves": 31,
+        "min_data_in_leaf": 1000,
+        "rounds": 14,
+        "val_logloss": 0.19078761894097773
+      },
+      {
+        "num_leaves": 63,
+        "min_data_in_leaf": 200,
+        "rounds": 4,
+        "val_logloss": 0.18991266733936985
+      },
+      {
+        "num_leaves": 63,
+        "min_data_in_leaf": 1000,
+        "rounds": 11,
+        "val_logloss": 0.19087925404484696
+      }
+    ]
+  }
+}

@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Air Alert Hazard</title>
+<script src="__PLOTLY__"></script>
+<style>
+:root{--bg:#f7f7f5;--card:#fff;--ink:#1d1d1f;--muted:#6b6b70;--line:#e3e3e0;--accent:#c2410c;--yellow:#f2c230;--red:#d6352b;--quiet:#3b82f6}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111214;--card:#1a1b1e;--ink:#ececee;--muted:#9a9aa2;--line:#2c2d31;--accent:#fb923c}}
+:root[data-theme="dark"]{--bg:#111214;--card:#1a1b1e;--ink:#ececee;--muted:#9a9aa2;--line:#2c2d31;--accent:#fb923c}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif}
+header{padding:20px 16px 0;max-width:1200px;margin:0 auto}
+h1{font-size:22px;margin:0 0 4px}
+.sub{color:var(--muted);margin:0 0 14px}
+nav{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto}
+nav button{background:none;border:0;padding:10px 14px;color:var(--muted);font:inherit;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+nav button.on{color:var(--ink);border-color:var(--accent)}
+main{max-width:1200px;margin:0 auto;padding:16px}
+section{display:none}
+section.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}
+.row{display:flex;gap:14px;flex-wrap:wrap}
+.row>.card{flex:1 1 360px;min-width:0}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+label{color:var(--muted);font-size:13px}
+select,input[type=range]{font:inherit}
+select{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:4px 6px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{background:none;border:0;padding:4px 10px;color:var(--muted);font:inherit;cursor:pointer}
+.seg button.on{background:var(--ink);color:var(--bg)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+.tablewrap{overflow-x:auto}
+.pos{color:#15803d}.neg{color:#b91c1c}
+.note{color:var(--muted);font-size:13px}
+.plot{width:100%;min-height:320px}
+.row>.plot{width:auto;min-width:0}
+h2{font-size:17px;margin:0 0 8px}
+h3{font-size:15px;margin:12px 0 6px}
+#slider{width:100%}
+</style>
+</head>
+<body>
+<header>
+<h1>Air raid alert hazard forecast</h1>
+<p class="sub">Per oblast: the chance an alert starts soon, or that the current one ends soon, for any alert (yellow or red) and red alerts. Built only from alerts declared before each forecast time.</p>
+<nav id="tabs"><button data-t="forecast" class="on">Forecast</button><button data-t="replay">Replay</button><button data-t="scores">Scorecard</button><button data-t="data">Data</button></nav>
+</header>
+<main>
+<section id="forecast" class="on">
+  <div class="card">
+    <div class="controls">
+      <span class="seg" id="f-level"><button data-v="any" class="on">Any alert</button><button data-v="red">Red alert</button></span>
+      <label>starts within <select id="f-h"></select></label>
+      <label>ends within <select id="f-e"></select></label>
+    </div>
+    <p class="note" id="f-at"></p>
+    <p class="note" id="f-red" style="display:none">Red-alert forecasts are not yet better than historical rates (no skill over climatology on validation); treat them as base rates.</p>
+    <div class="row"><div id="f-map" class="plot" style="flex:1 1 520px;min-height:460px"></div><div id="f-curve" class="plot" style="flex:1 1 320px"></div></div>
+    <p class="note">Quiet oblasts are coloured by the chance an alert starts within the chosen time; oblasts under alert are coloured blue by the chance it ends within the chosen time. Click an oblast for its full curve.</p>
+  </div>
+</section>
+<section id="replay">
+  <div class="card">
+    <div class="controls">
+      <label>period <select id="r-eval"></select></label>
+      <label>oblast <select id="r-obl"></select></label>
+      <span class="seg" id="r-level"><button data-v="any" class="on">Any alert</button><button data-v="red">Red alert</button></span>
+      <label>starts within <select id="r-h"></select></label>
+    </div>
+    <h2>Forecast vs what happened</h2>
+    <div id="r-line" class="plot" style="min-height:360px"></div>
+    <p class="note">Line: the forecast made at each hour that an alert starts within the chosen time (gaps while an alert is already on). Dashed: the climatology baseline. Bands: actual alerts (yellow = any, red = red). A good forecast rises before a band begins.</p>
+  </div>
+  <div class="card">
+    <h2>Map replay</h2>
+    <input type="range" id="slider" min="0" value="0">
+    <p class="note" id="r-time"></p>
+    <div class="row"><div id="r-map-f" class="plot" style="flex:1 1 420px;min-height:380px"></div><div id="r-map-a" class="plot" style="flex:1 1 420px;min-height:380px"></div></div>
+  </div>
+</section>
+<section id="scores"><div id="score-body"></div></section>
+<section id="data"><div id="data-body"></div></section>
+</main>
+<script>
+const D=__DATA__;
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const base=()=>({paper_bgcolor:'rgba(0,0,0,0)',plot_bgcolor:'rgba(0,0,0,0)',font:{color:css('--ink'),size:12},margin:{l:40,r:10,t:10,b:40}});
+const cfg={displayModeBar:false,responsive:true};
+const pct=v=>v==null||isNaN(v)?'–':(100*v).toFixed(0)+'%';
+const short=n=>n.replace(' область','').replace('м. ','');
+function showTab(t){const b=document.querySelector(`#tabs button[data-t="${t}"]`);if(!b)return;document.querySelectorAll('#tabs button,section').forEach(e=>e.classList.remove('on'));b.classList.add('on');document.getElementById(t).classList.add('on');window.dispatchEvent(new Event('resize'))}
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{history.replaceState(null,'','#'+b.dataset.t);showTab(b.dataset.t)});
+function seg(id,cb){const el=document.getElementById(id);el.querySelectorAll('button').forEach(b=>b.onclick=()=>{el.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');cb(b.dataset.v)});return()=>el.querySelector('.on').dataset.v}
+function fill(id,vals,fmt,sel){const s=document.getElementById(id);s.innerHTML=vals.map(v=>`<option value="${v}" ${v==sel?'selected':''}>${fmt(v)}</option>`).join('')}
+function geoLayout(){return {...base(),geo:{fitbounds:'locations',visible:false,projection:{type:'mercator'},bgcolor:'rgba(0,0,0,0)'},margin:{l:0,r:0,t:0,b:0}}}
+function choropleth(names,z,scale,title,extra={}){return {type:'choropleth',geojson:D.geo,featureidkey:'properties.name',locations:names,z,zmin:0,zmax:1,colorscale:scale,marker:{line:{color:css('--card'),width:1}},colorbar:{title:{text:title,side:'top'},thickness:10,len:.6,x:1.0,tickformat:'.0%'},hovertemplate:'%{text}<extra></extra>',...extra}}
+const HEAT=[[0,'#fff7ec'],[.25,'#fdd49e'],[.5,'#fc8d59'],[.75,'#d7301f'],[1,'#7f0000']];
+const COOL=[[0,'#eff6ff'],[1,'#1d4ed8']];
+
+const T=D.forecast.table, H=D.horizons;
+fill('f-h',H.start,h=>h+' h',3);fill('f-e',H.end.map(h=>h*15),m=>m+' min',60);
+const fLevel=seg('f-level',()=>{document.getElementById('f-red').style.display=fLevel()=='red'?'block':'none';drawForecast()});
+document.getElementById('f-h').onchange=drawForecast;document.getElementById('f-e').onchange=drawForecast;
+document.getElementById('f-at').textContent='Forecast made at '+new Date(D.forecast.at).toLocaleString()+' (latest alert data).';
+let picked=D.oblasts.indexOf('м. Київ');
+function drawForecast(){
+  const L=fLevel(),h=document.getElementById('f-h').value,e=document.getElementById('f-e').value;
+  const quiet=T.filter(r=>!r[L+'_active']),act=T.filter(r=>r[L+'_active']);
+  const q=choropleth(quiet.map(r=>r.oblast),quiet.map(r=>r[`${L}_start_${h*60}m`]),HEAT,'starts',{text:quiet.map(r=>`${short(r.oblast)}: quiet, ${pct(r[`${L}_start_${h*60}m`])} chance it starts within ${h} h`)});
+  const a=choropleth(act.map(r=>r.oblast),act.map(r=>r[`${L}_end_${e}m`]),COOL,'ends',{text:act.map(r=>`${short(r.oblast)}: under alert ${Math.round(r[L+'_for_min'])} min, ${pct(r[`${L}_end_${e}m`])} chance it ends within ${e} min`),colorbar:{title:{text:'ends',side:'top'},thickness:10,len:.6,x:1.12,tickformat:'.0%'}});
+  Plotly.react('f-map',[q,a],geoLayout(),cfg);
+  document.getElementById('f-map').on('plotly_click',ev=>{picked=D.oblasts.indexOf(ev.points[0].location);drawCurve()});
+  drawCurve();
+}
+function drawCurve(){
+  const r=T[picked],traces=[];
+  for(const L of ['any','red']){
+    const phase=r[L+'_active']?'end':'start',xs=phase=='start'?H.start.map(h=>h*60):H.end.map(h=>h*15);
+    traces.push({x:xs,y:xs.map(m=>r[`${L}_${phase}_${m}m`]),name:`${L=='any'?'Any alert':'Red alert'}: ${phase=='start'?'starts':'ends'} within`,mode:'lines+markers',line:{color:L=='any'?css('--yellow'):css('--red'),width:3}});
+  }
+  const ticks=[15,30,60,120,180,360,720,1440];
+  Plotly.react('f-curve',traces,{...base(),margin:{l:40,r:10,t:40,b:40},title:{text:short(r.oblast),font:{size:14}},yaxis:{range:[0,1],tickformat:'.0%'},xaxis:{type:'log',tickvals:ticks,ticktext:['15m','30m','1h','2h','3h','6h','12h','24h'],title:{text:'time ahead'}},legend:{orientation:'h',y:-.25}},cfg);
+}
+drawForecast();
+
+const evals=Object.keys(D.replay).filter(k=>D.replay[k]);
+fill('r-eval',evals,k=>k=='e2'?'Latest (new yellow/red system)':'August (old system)',evals.includes('e2')?'e2':evals[0]);
+fill('r-obl',D.oblasts.map((_,i)=>i),i=>short(D.oblasts[i]),D.oblasts.indexOf('м. Київ'));
+fill('r-h',H.start,h=>h+' h',3);
+const rLevel=seg('r-level',drawReplay);
+['r-eval','r-obl','r-h'].forEach(id=>document.getElementById(id).onchange=drawReplay);
+document.getElementById('slider').oninput=drawMaps;
+function drawReplay(){
+  const R=D.replay[document.getElementById('r-eval').value];let L=rLevel();if(!R.levels[L]){L='any'}
+  const o=+document.getElementById('r-obl').value,h=document.getElementById('r-h').value,lv=R.levels[L];
+  const shapes=[];
+  for(const lev of ['any','red'])(R.bands[lev]||[])[o]?.forEach(([a,b])=>shapes.push({type:'rect',xref:'x',yref:'paper',x0:a,x1:b,y0:0,y1:1,fillcolor:lev=='any'?css('--yellow'):css('--red'),opacity:lev=='any'?.35:.45,line:{width:0},layer:'below'}));
+  const traces=[
+    {x:R.times,y:lv.start[h][o],name:'forecast',mode:'lines',line:{color:css('--ink'),width:2},connectgaps:false},
+    {x:R.times,y:lv.baseline[h][o],name:'baseline',mode:'lines',line:{color:css('--muted'),width:1,dash:'dash'},connectgaps:false}];
+  Plotly.react('r-line',traces,{...base(),shapes,yaxis:{range:[0,1],tickformat:'.0%',title:{text:`P(${L=='any'?'alert':'red alert'} starts within ${h} h)`}},legend:{orientation:'h',y:1.1}},cfg);
+  const s=document.getElementById('slider');s.max=R.times.length-1;if(+s.value>=R.times.length)s.value=0;
+  drawMaps();
+}
+function drawMaps(){
+  const R=D.replay[document.getElementById('r-eval').value];let L=rLevel();if(!R.levels[L])L='any';
+  const h=document.getElementById('r-h').value,t=+document.getElementById('slider').value,lv=R.levels[L];
+  document.getElementById('r-time').textContent=new Date(R.times[t]).toLocaleString()+` — left: forecast made at this moment; right: whether an alert actually started within ${h} h (grey = already under alert)`;
+  const idx=D.oblasts.map((_,i)=>i),act=idx.filter(i=>lv.active[i][t]),quiet=idx.filter(i=>!lv.active[i][t]);
+  const grey={type:'choropleth',geojson:D.geo,featureidkey:'properties.name',locations:act.map(i=>D.oblasts[i]),z:act.map(()=>1),colorscale:[[0,'#9ca3af'],[1,'#9ca3af']],showscale:false,hovertemplate:'%{location}: under alert<extra></extra>'};
+  const f=choropleth(quiet.map(i=>D.oblasts[i]),quiet.map(i=>lv.start[h][i][t]),HEAT,'forecast',{text:quiet.map(i=>`${short(D.oblasts[i])}: forecast ${pct(lv.start[h][i][t])}`)});
+  const a=choropleth(quiet.map(i=>D.oblasts[i]),quiet.map(i=>lv.happened[h][i][t]),[[0,'#e5e7eb'],[1,'#b91c1c']],'happened',{showscale:false,text:quiet.map(i=>`${short(D.oblasts[i])}: ${lv.happened[h][i][t]==1?'alert started':lv.happened[h][i][t]==0?'stayed quiet':'unknown (data ends)'}`)});
+  Plotly.react('r-map-f',[grey,f],{...geoLayout(),title:{text:'Forecast',y:.98,font:{size:13}}},cfg);
+  Plotly.react('r-map-a',[grey,a],{...geoLayout(),title:{text:'What happened',y:.98,font:{size:13}}},cfg);
+}
+if(evals.length)drawReplay();
+
+function skillCell(v){if(!v||v.skill==null)return '<td>–</td>';const s=v.skill,ci=v.skill_ci;return `<td class="${s>0?'pos':'neg'}">${(100*s).toFixed(1)}%${ci?` <span class="note">[${(100*ci[0]).toFixed(1)}, ${(100*ci[1]).toFixed(1)}]</span>`:''}</td>`}
+function scoreTable(r,phase){
+  const hs=H[phase].filter(h=>r.horizons[h]),models=['model','lightgbm','logistic','new_only','old_only'].filter(m=>r.horizons[hs[0]]?.[m]);
+  const unit=h=>phase=='start'?h+' h':h*15+' min';
+  return `<div class="tablewrap"><table><tr><th>horizon</th><th>n</th><th>event rate</th><th>baseline Brier</th>${models.map(m=>`<th>${m=='model'?'champion':m.replace('_',' ')} skill</th>`).join('')}<th>champion ECE</th></tr>${hs.map(h=>{const e=r.horizons[h];return `<tr><td>${unit(h)}</td><td>${e.n}</td><td>${pct(e.event_rate)}</td><td>${e.baseline.brier.toFixed(4)}</td>${models.map(m=>skillCell(e[m])).join('')}<td>${e.model.ece.toFixed(3)}</td></tr>`}).join('')}</table></div>`;
+}
+function groupTable(r,phase){
+  const hs=H[phase];return `<div class="tablewrap"><table><tr><th>group</th>${hs.map(h=>`<th>${phase=='start'?h+' h':h*15+' min'}</th>`).join('')}</tr>${Object.entries(r.groups).map(([g,v])=>`<tr><td>${g.replace('_','/')}</td>${hs.map(h=>v[h]?skillCell(v[h].model):'<td>–</td>').join('')}</tr>`).join('')}</table></div>`;
+}
+(function(){
+  const out=[];
+  const names={e2:'Latest period — new yellow/red system',e1:'Method check — old system (August)'};
+  for(const ev of ['e2','e1']){
+    const S=D.scores[ev];if(!S)continue;
+    const split=S.test?'test':'val',M=S[split].results;
+    out.push(`<div class="card"><h2>${names[ev]} <span class="note">(${split} set, evaluated ${S[split].evaluated_at}, model ${S[split].model_hash})</span></h2>`);
+    for(const [kind,r] of Object.entries(M)){
+      const phase=kind.endsWith('start')?'start':'end',champ=S.training?.[kind+'/main']?.champion;
+      out.push(`<h3>${kind} — champion: ${champ}</h3><p class="note">Skill = Brier skill vs ${phase=='start'?'climatology (per oblast × hour of day)':'Kaplan–Meier (per oblast × elapsed time)'}; [95% day-block bootstrap CI]. ${phase=='start'?'Headline excludes frontline oblasts.':''}</p>${scoreTable(r,phase)}<details><summary class="note">by group</summary>${groupTable(r,phase)}</details><div id="rel-${ev}-${kind}" class="plot" style="min-height:260px"></div>`);
+    }
+    out.push('</div>');
+  }
+  document.getElementById('score-body').innerHTML=out.join('')||'<div class="card">No metrics yet.</div>';
+  for(const ev of ['e2','e1']){const S=D.scores[ev];if(!S)continue;const M=S[S.test?'test':'val'].results;
+    for(const [kind,r] of Object.entries(M)){const phase=kind.endsWith('start')?'start':'end',hs=phase=='start'?[1,6]:[1,4];
+      const tr=[{x:[0,1],y:[0,1],mode:'lines',line:{dash:'dot',color:css('--muted')},showlegend:false}];
+      hs.forEach(h=>{const rel=r.horizons[h]?.model?.reliability;if(rel)tr.push({x:rel.map(b=>b.p),y:rel.map(b=>b.y),mode:'lines+markers',name:phase=='start'?h+' h':h*15+' min',text:rel.map(b=>'n='+b.n)})});
+      Plotly.newPlot(`rel-${ev}-${kind}`,tr,{...base(),xaxis:{title:{text:'forecast probability'},range:[0,1]},yaxis:{title:{text:'observed frequency'},range:[0,1]},legend:{orientation:'h',y:1.15}},cfg)}}
+})();
+
+(function(){
+  const E=D.eda,n=D.oblasts.map(short);
+  document.getElementById('data-body').innerHTML=`
+  <div class="card"><h2>The alert definition changed on 6 Sep 2026</h2><p class="note">Share of time under alert. Old system: one siren-backed alert (official data, Dec 2025 – Aug 2026). New system: yellow (drone threat) + red levels (alerts.in.ua, from 10 Sep 2026). "Any" is the closest match to the old alert; red is rarer.</p><div id="d-share" class="plot" style="min-height:520px"></div></div>
+  <div class="row"><div class="card"><h2>Alert starts by hour (Kyiv)</h2><div id="d-hour" class="plot"></div></div><div class="card"><h2>Alert starts by weekday</h2><div id="d-dow" class="plot"></div></div></div>
+  <div class="card"><h2>Which oblasts are under alert together (new system)</h2><div id="d-co" class="plot" style="min-height:560px"></div></div>
+  <div class="card"><h2>Merging raions into oblasts</h2><p class="note">Each oblast timeline is the union of its oblast- and raion-level declarations; nothing is dropped. That is why a few oblasts look near-permanent: a single frontline raion keeps the whole oblast "under alert". Top raions by share of time under alert (official data, Dec 2025 – Jul 2026):</p><div class="tablewrap"><table><tr><th>oblast</th><th>raion</th><th>% of time</th></tr>${(E.raions||[]).slice(0,15).map(r=>`<tr><td>${short(r.oblast)}</td><td>${r.raion}</td><td>${r.share}</td></tr>`).join('')}</table></div></div>`;
+  Plotly.newPlot('d-share',[{y:n,x:E.share.old.any,name:'old: alert',type:'bar',orientation:'h',marker:{color:css('--muted')}},{y:n,x:E.share.new.any,name:'new: any',type:'bar',orientation:'h',marker:{color:css('--yellow')}},{y:n,x:E.share.new.red,name:'new: red',type:'bar',orientation:'h',marker:{color:css('--red')}}],{...base(),barmode:'group',margin:{l:110,r:10,t:10,b:40},xaxis:{title:{text:'% of time under alert'}},legend:{orientation:'h',y:1.05}},cfg);
+  const hrs=[...Array(24).keys()];
+  Plotly.newPlot('d-hour',['old','new'].map(k=>({x:hrs,y:E.hour[k],name:k=='old'?'old system':'new system',mode:'lines+markers'})),{...base(),xaxis:{title:{text:'hour'}},yaxis:{title:{text:'starts per day'}}},cfg);
+  Plotly.newPlot('d-dow',['old','new'].map(k=>({x:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],y:E.dow[k],name:k=='old'?'old system':'new system',type:'bar'})),{...base(),yaxis:{title:{text:'starts per day'}}},cfg);
+  Plotly.newPlot('d-co',[{z:E.cooccurrence,x:n,y:n,type:'heatmap',colorscale:'RdBu',reversescale:true,zmin:-1,zmax:1}],{...base(),margin:{l:110,r:10,t:10,b:110}},cfg);
+})();
+showTab(location.hash.slice(1)||'forecast');
+</script>
+</body>
+</html>
