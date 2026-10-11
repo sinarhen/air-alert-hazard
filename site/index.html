@@ -116,7 +116,7 @@ const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim
 const FONT='-apple-system,BlinkMacSystemFont,Segoe UI,Inter,sans-serif';
 const base=()=>({paper_bgcolor:'rgba(0,0,0,0)',plot_bgcolor:'rgba(0,0,0,0)',font:{color:css('--ink'),size:12,family:FONT},margin:{l:44,r:12,t:10,b:40}});
 const cfg={displayModeBar:false,responsive:true};
-const pct=v=>v==null||isNaN(v)?'–':(100*v).toFixed(0)+'%';
+const pct=v=>v==null||isNaN(v)?'–':v>.99?'>99%':v<.01?'<1%':(100*v).toFixed(0)+'%';
 const short=n=>n.replace(' область','').replace('м. ','');
 const unit=m=>m<60?m+' min':m/60+' h';
 const kyiv=iso=>new Date(iso).toLocaleString('en-GB',{timeZone:'Europe/Kyiv',weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
