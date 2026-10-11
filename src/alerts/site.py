@@ -3,6 +3,8 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from shapely.geometry import shape
+from shapely.ops import polylabel
 
 from alerts.adjacency import OBLASTS, group_of
 from alerts.evaluate import EVALS, HORIZONS
@@ -17,31 +19,12 @@ def _iso(timeline: Timeline, minute: int) -> str:
     return timeline.time(np.array([minute]))[0].isoformat()
 
 
-LABEL_SHIFT = {"Київська область": (0.0, -0.45)}
-
-
-def _area(ring: np.ndarray) -> float:
-    x, y = ring.T
-    return float(x[:-1] @ y[1:] - x[1:] @ y[:-1]) / 2
-
-
-def _centroid(ring: np.ndarray) -> tuple[float, float]:
-    x, y = ring.T
-    cross = x[:-1] * y[1:] - x[1:] * y[:-1]
-    scale = 6 * _area(ring)
-    return float(((x[:-1] + x[1:]) * cross).sum() / scale), float(((y[:-1] + y[1:]) * cross).sum() / scale)
-
-
 def label_points(geo: dict) -> dict[str, list[float]]:
     out = {}
     for feature in geo["features"]:
-        geometry = feature["geometry"]
-        polygons = geometry["coordinates"] if geometry["type"] == "MultiPolygon" else [geometry["coordinates"]]
-        outer = max((np.array(polygon[0], dtype=float) for polygon in polygons), key=lambda ring: abs(_area(ring)))
-        name = feature["properties"]["name"]
-        lon, lat = _centroid(outer)
-        dx, dy = LABEL_SHIFT.get(name, (0.0, 0.0))
-        out[name] = [round(lon + dx, 3), round(lat + dy, 3)]
+        polygons = getattr(shape(feature["geometry"]), "geoms", [shape(feature["geometry"])])
+        point = polylabel(max(polygons, key=lambda polygon: polygon.area), tolerance=0.01)
+        out[feature["properties"]["name"]] = [round(point.x, 3), round(point.y, 3)]
     return out
 
 
