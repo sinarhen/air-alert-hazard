@@ -68,7 +68,8 @@ def _fetch_time(payload: dict) -> pd.Timestamp:
 def load_alerts_in_ua(raw_dir: Path) -> tuple[pd.DataFrame, Coverage]:
     records = []
     region_fetches: dict[str, list[pd.Timestamp]] = {}
-    for path in sorted(raw_dir.glob("alerts_in_ua_*/r*.json")):
+    regions = {f"r{uid}.json" for uid in REGION_UIDS}
+    for path in sorted(p for p in raw_dir.glob("alerts_in_ua_*/r*.json") if p.name in regions):
         payload = json.loads(path.read_text())
         fetched = _fetch_time(payload)
         region_fetches.setdefault(path.name, []).append(fetched)
