@@ -172,9 +172,14 @@ class Candidates:
     champion: str
     val_log_loss: dict
     trials: list
+    kind: Kind
+    climatology: Climatology | None = None
 
     def hazard(self, rows: pd.DataFrame, name: str | None = None) -> np.ndarray:
-        return getattr(self, name or self.champion).hazard(rows)
+        name = name or self.champion
+        if name == "climatology":
+            return self.climatology.hazard(rows, self.kind)
+        return getattr(self, name).hazard(rows)
 
     def save(self, path: Path) -> None:
         self.lightgbm.save(path)
@@ -183,13 +188,24 @@ class Candidates:
         path.with_suffix(".champion.json").write_text(json.dumps(meta, indent=2))
 
     @classmethod
-    def load(cls, path: Path) -> "Candidates":
+    def load(cls, path: Path, kind: Kind) -> "Candidates":
         meta = json.loads(path.with_suffix(".champion.json").read_text())
-        return cls(Booster.load(path), pd.read_pickle(path.with_suffix(".logistic.pkl")), meta["champion"], meta["val_log_loss"], meta["trials"])
+        baseline = path.with_suffix(".baseline.pkl")
+        climatology = pd.read_pickle(baseline) if baseline.exists() else None
+        return cls(Booster.load(path), pd.read_pickle(path.with_suffix(".logistic.pkl")), meta["champion"], meta["val_log_loss"], meta["trials"], kind, climatology)
 
 
-def fit_candidates(train: pd.DataFrame, y_train: np.ndarray, val: pd.DataFrame, y_val: np.ndarray) -> Candidates:
+def fit_candidates(
+    train: pd.DataFrame,
+    y_train: np.ndarray,
+    val: pd.DataFrame,
+    y_val: np.ndarray,
+    kind: Kind,
+    climatology: Climatology | None = None,
+) -> Candidates:
     booster, trials = fit_booster(train, y_train, val, y_val)
     logistic = Logistic.fit(train, y_train)
     scores = {"lightgbm": log_loss(y_val, booster.hazard(val)), "logistic": log_loss(y_val, logistic.hazard(val))}
-    return Candidates(booster, logistic, min(scores, key=scores.get), scores, trials)
+    if climatology is not None:
+        scores["climatology"] = log_loss(y_val, climatology.hazard(val, kind))
+    return Candidates(booster, logistic, min(scores, key=scores.get), scores, trials, kind, climatology)

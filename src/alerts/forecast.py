@@ -20,7 +20,7 @@ def forecast(timeline: Timeline, minute: int, artifacts: Path, eval_name: str = 
         out[f"{level}_for_min"] = features[f"{level}_since_change"].to_numpy()
         for phase in ("start", "end"):
             kind = kind_of(f"{level}-{phase}")
-            curve = cumulative(Candidates.load(_artifact(artifacts, eval_name, kind, "main")).hazard(rows))
+            curve = cumulative(Candidates.load(_artifact(artifacts, eval_name, kind, "main"), kind).hazard(rows))
             for h in HORIZONS[phase]:
                 column = f"{level}_{phase}_{h * kind.bin_minutes}m"
                 out[column] = np.where(active == (phase == "end"), curve[:, h - 1], np.nan)

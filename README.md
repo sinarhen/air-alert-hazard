@@ -14,7 +14,9 @@ Everything is computed only from alerts declared before the forecast time. That 
 ```bash
 uv sync
 export ALERTS_IN_UA_TOKEN=...          # https://devs.alerts.in.ua (free, by request)
-uv run alerts fetch                    # official CSV + 30-day alerts.in.ua history (append-only)
+export TELEGRAM_API_ID=... TELEGRAM_API_HASH=... TELEGRAM_SESSION=...   # read-only channel pull
+uv run alerts fetch                    # official CSV, 30-day alerts.in.ua history, @air_alert_map (append-only)
+uv run alerts check-escalations        # red switch-time checks
 uv run alerts train --eval e1          # old-system method check: train + validation metrics
 uv run alerts train --eval e2          # new-system models: train + validation metrics
 uv run alerts evaluate --eval e1 --split test
@@ -30,6 +32,8 @@ uv run pytest
 |---|---|---|
 | [Vadimkin/ukrainian-air-raid-sirens-dataset](https://github.com/Vadimkin/ukrainian-air-raid-sirens-dataset) `official_data_uk.csv` | Declarations scraped from the official `@air_alert_ua` channel; oblast/raion/hromada level; no type or level | Old system, Dec 2025 – Aug 2026 |
 | [alerts.in.ua](https://devs.alerts.in.ua) `regions/{uid}/alerts/month_ago.json` | Declarations with `alert_type` and `alert_level` (red/yellow); rolling 30-day window | New system, 10 Sep 2026 onward |
+| Telegram [@air_alert_map](https://t.me/air_alert_map) (unofficial) | A separate `🔴 <raion>` line whenever an alert is raised to red | When each alert turned red (see *Leakage*) |
+| alerts.in.ua `alerts/active.json`, polled every ~40 s | Live level of every active alert | Ground truth for the escalation check, from 10 Oct |
 
 ### Findings that shaped the design
 
@@ -47,9 +51,9 @@ uv run pytest
 
    | | Old system (Dec–Jul) | New: any | New: red |
    |---|---|---|---|
-   | Kyiv City | 5.7% | 31.6% | 2.7% |
-   | Kyiv oblast | 18.6% | 69.1% | 11.6% |
-   | Odesa | 18.9% | 40.5% | 6.6% |
+   | Kyiv City | 5.7% | 31.7% | 2.0% |
+   | Kyiv oblast | 18.6% | 69.1% | 7.3% |
+   | Odesa | 18.9% | 40.5% | 5.0% |
 
    The old data is a different event. It is used deliberately (see *Models*), never silently mixed in.
 5. **No raion is dropped.**
@@ -75,7 +79,7 @@ Discrete-time hazard (survival) models. For each future bin k, the model predict
   - neighbours under alert and their recent starts (hand-written adjacency map);
   - national counts, and time since the last national wave (≥15 oblasts within 30 min);
   - the current state of every oblast.
-- **Candidates per model:** LightGBM and logistic regression on the same rows. Logistic regression with a one-hot bin index is the classic discrete-time proportional-hazards model. The **champion is chosen by validation log loss**, and both are reported.
+- **Candidates per model:** LightGBM, logistic regression (with a one-hot bin index, the classic discrete-time proportional-hazards model) and the historical-rate baseline itself. The **champion is chosen by validation log loss**, so a model that cannot beat history is never served: history is served instead.
 - **Old data:**
   - the any-models train on old + new rows with a `regime` feature;
   - the red models train on new rows only, since old rows have no red label;
@@ -116,8 +120,8 @@ Brier skill vs. baseline, with 95% day-block bootstrap CI. Full tables, calibrat
 | any-start, new data only | +4.7% | +3.0% | +1.4% | −0.5% | −1.0% |
 | any-start, old data only | +4.4% | +3.0% | +1.8% | −2.4% | −18.8% |
 | any-end (LightGBM) | +0.3% | −0.6% | −0.4% | +4.2% | |
-| red-start (logistic) | −0.4% | −3.1% | −0.8% | +0.5% | −9.6% |
-| red-end (LightGBM) | −1.2% | −2.3% | −1.8% | +0.8% | |
+| red-start (historical rates) | 0 | 0 | 0 | 0 | 0 |
+| red-end (LightGBM) | +1.6% [−5.6, 6.6] | +1.1% [−5.8, 6.2] | +3.2% [−5.1, 8.8] | +8.4% [4.8, 10.8] | |
 
 - **Old data helps.** On validation, old + new data beats either source alone at every horizon (point estimates; the differences have no CIs yet). The old-only collapse at 24 h is the regime shift in numbers.
 - **LightGBM vs. logistic.** LightGBM lost to logistic regression for E1 starts: trees learned on December–June did not transfer to July, while the proportional-hazards structure did. Hence champion selection by validation instead of assuming LightGBM.
@@ -130,15 +134,23 @@ Brier skill vs. baseline, with 95% day-block bootstrap CI. Full tables, calibrat
   - a deliberately leaky feature (state 30 min ahead) makes the test fail, so the test has teeth.
 - **Labels never cross a split boundary.** Every split censors labels at its end.
 - **Tuning uses validation only:** model choice, grid search and temperature scaling. Each test set was evaluated once, and the time and model hash are logged in `reports/test_log.jsonl`.
-- **Red-level escalation:**
-  - The history endpoint keeps one `alert_level` per alert. If a yellow alert is escalated to red *in place*, its history row says red from the start.
-  - So the any-models use no red-derived features: dropping them improved any-start validation log loss (0.2066 → 0.2044) and cost any-end 0.6%.
-  - A live poller of active alerts checks whether in-place escalation happens.
+- **Red-level escalation: a leak found and fixed.**
+  - **Suspicion.** The history endpoint keeps one `alert_level` per alert. If a yellow alert is raised to red *in place*, history would say red from its yellow start. As a precaution the any-models never used red inputs (any-start validation log loss 0.2066 → 0.2044; any-end −0.6%).
+  - **Proof.** A live poller of `active.json` saw 51 alerts change yellow → red under the same id. A re-fetch of their history showed every one as red from the start, with `updated_at` overwritten by the finish time. No official API keeps the switch time.
+  - **Size.** 1,642 of 3,712 red alerts (44%) in the training and validation window were raised in place, so the red models had learned from red that had not been declared yet.
+  - **Fix.** Switch times are backfilled from @air_alert_map (`escalations.py`): red starts at the alert start if the channel announced it as red (`🔴 [n]`), at the post time of the channel's `🔴` line if it was raised later, and is left out if neither is found. The channel posts after the real switch, so red is never marked earlier than it was public.
+  - **Checks** (`alerts check-escalations`, `reports/escalations.json`):
+    - coverage: 93.9% of red alerts get a switch time;
+    - live poller: 42 of 42 switches matched, median 39 s after the true switch; one was 6.7 min ahead of alerts.in.ua, which was still showing yellow;
+    - official oblast channels (Kyiv oblast, Vinnytsia, Kherson, Rivne): 49 of 52 September escalations agree within 3 min.
+  - **Tests.** Every red switch is a public channel post, and the backfilled switches match the poller within 10 min; painting red from the yellow start again fails the test.
+  - **Effect** on validation (`reports/e2/val_metrics_leaky_red.json` vs `val_metrics.json`): red-end went from no skill to +8.4% at 2 h [4.8, 10.8]; red-start fell to −6% to −22% beyond 3 h, so historical rates are served for it. The any-models were not retrained.
 
 ## Limits
 
 - **The E2 test is short** (days, not weeks), so its confidence intervals are wide. That is why E1 exists.
-- **Red models do not beat climatology on validation.** Red events in the new system are rare, and there are only ~2 weeks to learn from. The red forecast is still shown, labelled as no better than historical rates.
+- **Red start is served as historical rates.** No trained model beat them on validation: red is rare and there are ~2 weeks to learn from.
+- **Red switch times come from an unofficial channel.** It agrees with the live poller and with four official oblast channels, but its September accuracy rests on that agreement; 70% of its posts were edited later (we only see the final text); 6.1% of red alerts have no switch time and are treated as not red; red → yellow downgrades are not tracked.
 - **any-start is overconfident above ~60%** (forecast 65–72% within 1 h → observed ~50% on validation).
 - **The General Staff recalibrates yellow/red criteria weekly.** This non-stationarity is reported, not modelled.
 - **Telegram text was not used.** Checked against @kpszsu and @war_monitor history (6 Sep – 1 Oct):
@@ -154,6 +166,7 @@ Brier skill vs. baseline, with 95% day-block bootstrap CI. Full tables, calibrat
 ```
 src/alerts/
   sources.py     download + load both sources into one canonical table
+  escalations.py red switch times from @air_alert_map, and their checks
   timeline.py    minute-level any/red state per oblast, causal by construction
   adjacency.py   oblast neighbour map and reporting groups
   features.py    features at forecast times, hazard labels, row expansion

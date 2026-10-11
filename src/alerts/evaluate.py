@@ -83,10 +83,11 @@ def _artifact(root: Path, eval_name: str, kind: Kind, variant: str) -> Path:
     return root / eval_name / f"{kind.name}{suffix}"
 
 
-def train(workspace: Workspace, eval_name: str, artifacts: Path, reports: Path) -> dict:
+def train(workspace: Workspace, eval_name: str, artifacts: Path, reports: Path, kinds: list[str] | None = None) -> dict:
     config = EVALS[eval_name]
-    summary = {}
-    for name in config["kinds"]:
+    log = reports / eval_name / "training.json"
+    summary = json.loads(log.read_text()) if kinds and log.exists() else {}
+    for name in kinds or config["kinds"]:
         kind = kind_of(name)
         variants = config["train"] if kind.level == "any" else {"main": config["train"]["main"]}
         val = workspace.split(kind, *config["val"])
@@ -94,12 +95,14 @@ def train(workspace: Workspace, eval_name: str, artifacts: Path, reports: Path) 
         for variant, ranges in variants.items():
             rows, y = workspace.training_rows(kind, ranges)
             rows = level_columns(rows, kind)
-            candidates = fit_candidates(rows, y, val_rows, val_y)
             path = _artifact(artifacts, eval_name, kind, variant)
-            candidates.save(path)
+            climatology = None
             if variant == "main":
                 base_mask = (rows["regime"] == config["baseline_regime"]).to_numpy()
-                pd.to_pickle(Climatology.fit(rows[base_mask], y[base_mask], kind), path.with_suffix(".baseline.pkl"))
+                climatology = Climatology.fit(rows[base_mask], y[base_mask], kind)
+                pd.to_pickle(climatology, path.with_suffix(".baseline.pkl"))
+            candidates = fit_candidates(rows, y, val_rows, val_y, kind, climatology)
+            candidates.save(path)
             summary[f"{name}/{variant}"] = {
                 "train_rows": int(len(rows)),
                 "events": int(y.sum()),
@@ -108,7 +111,7 @@ def train(workspace: Workspace, eval_name: str, artifacts: Path, reports: Path) 
                 "temperature": candidates.lightgbm.temperature,
                 "trials": candidates.trials,
             }
-    _write(reports / eval_name / "training.json", summary)
+    _write(log, summary)
     return summary
 
 
@@ -119,7 +122,7 @@ def predict(workspace: Workspace, eval_name: str, split_name: str, artifacts: Pa
         kind = kind_of(name)
         split = workspace.split(kind, *config[split_name])
         rows = curve_rows(split.features)
-        main = Candidates.load(_artifact(artifacts, eval_name, kind, "main"))
+        main = Candidates.load(_artifact(artifacts, eval_name, kind, "main"), kind)
         baseline = pd.read_pickle(_artifact(artifacts, eval_name, kind, "main").with_suffix(".baseline.pkl"))
         curves = {
             "model": cumulative(main.hazard(rows)),
@@ -130,7 +133,7 @@ def predict(workspace: Workspace, eval_name: str, split_name: str, artifacts: Pa
         variants = config["train"] if kind.level == "any" else {}
         for variant in variants:
             if variant != "main":
-                curves[variant] = cumulative(Candidates.load(_artifact(artifacts, eval_name, kind, variant)).hazard(rows))
+                curves[variant] = cumulative(Candidates.load(_artifact(artifacts, eval_name, kind, variant), kind).hazard(rows))
         frame = split.features[["minute", "oblast"]].reset_index(drop=True).join(split.result.reset_index(drop=True))
         for label, values in curves.items():
             for h in range(values.shape[1]):

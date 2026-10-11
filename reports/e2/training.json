@@ -288,98 +288,100 @@
     ]
   },
   "red-start/main": {
-    "train_rows": 109170,
-    "events": 3079,
-    "champion": "logistic",
+    "train_rows": 111753,
+    "events": 3300,
+    "champion": "climatology",
     "val_log_loss": {
-      "lightgbm": 0.09175179101912667,
-      "logistic": 0.08671089094612265
+      "lightgbm": 0.09284440688242113,
+      "logistic": 0.09412765203169211,
+      "climatology": 0.08580912800109858
     },
-    "temperature": 0.8919040679524637,
+    "temperature": 0.9252745096373782,
     "trials": [
       {
         "num_leaves": 15,
         "min_data_in_leaf": 200,
-        "rounds": 6,
-        "val_logloss": 0.09453081596224018
+        "rounds": 50,
+        "val_logloss": 0.09705488283747293
       },
       {
         "num_leaves": 15,
         "min_data_in_leaf": 1000,
-        "rounds": 49,
-        "val_logloss": 0.09335755286609393
-      },
-      {
-        "num_leaves": 31,
-        "min_data_in_leaf": 200,
-        "rounds": 5,
-        "val_logloss": 0.0942895902928752
-      },
-      {
-        "num_leaves": 31,
-        "min_data_in_leaf": 1000,
-        "rounds": 5,
-        "val_logloss": 0.09480020233623948
-      },
-      {
-        "num_leaves": 63,
-        "min_data_in_leaf": 200,
-        "rounds": 4,
-        "val_logloss": 0.09503444789805235
-      },
-      {
-        "num_leaves": 63,
-        "min_data_in_leaf": 1000,
-        "rounds": 31,
-        "val_logloss": 0.09499955379540302
-      }
-    ]
-  },
-  "red-end/main": {
-    "train_rows": 98616,
-    "events": 4026,
-    "champion": "lightgbm",
-    "val_log_loss": {
-      "lightgbm": 0.18989735074098849,
-      "logistic": 0.21179938005774046
-    },
-    "temperature": 0.9912909242403515,
-    "trials": [
-      {
-        "num_leaves": 15,
-        "min_data_in_leaf": 200,
-        "rounds": 9,
-        "val_logloss": 0.1912298701030954
-      },
-      {
-        "num_leaves": 15,
-        "min_data_in_leaf": 1000,
-        "rounds": 14,
-        "val_logloss": 0.19024083746827314
+        "rounds": 36,
+        "val_logloss": 0.09360129563488492
       },
       {
         "num_leaves": 31,
         "min_data_in_leaf": 200,
         "rounds": 7,
-        "val_logloss": 0.19108855175799455
+        "val_logloss": 0.09917869449314805
       },
       {
         "num_leaves": 31,
         "min_data_in_leaf": 1000,
-        "rounds": 14,
-        "val_logloss": 0.19078761894097773
+        "rounds": 17,
+        "val_logloss": 0.09611310243553309
       },
       {
         "num_leaves": 63,
         "min_data_in_leaf": 200,
-        "rounds": 4,
-        "val_logloss": 0.18991266733936985
+        "rounds": 8,
+        "val_logloss": 0.09935680348014324
       },
       {
         "num_leaves": 63,
         "min_data_in_leaf": 1000,
-        "rounds": 11,
-        "val_logloss": 0.19087925404484696
+        "rounds": 25,
+        "val_logloss": 0.09688247902312293
+      }
+    ]
+  },
+  "red-end/main": {
+    "train_rows": 80604,
+    "events": 3421,
+    "champion": "lightgbm",
+    "val_log_loss": {
+      "lightgbm": 0.20290477503235696,
+      "logistic": 0.23235851679200734,
+      "climatology": 0.2110402225165721
+    },
+    "temperature": 0.9658423478653977,
+    "trials": [
+      {
+        "num_leaves": 15,
+        "min_data_in_leaf": 200,
+        "rounds": 16,
+        "val_logloss": 0.20441405991310346
+      },
+      {
+        "num_leaves": 15,
+        "min_data_in_leaf": 1000,
+        "rounds": 25,
+        "val_logloss": 0.2031337511155056
+      },
+      {
+        "num_leaves": 31,
+        "min_data_in_leaf": 200,
+        "rounds": 10,
+        "val_logloss": 0.2042389064316903
+      },
+      {
+        "num_leaves": 31,
+        "min_data_in_leaf": 1000,
+        "rounds": 19,
+        "val_logloss": 0.20415203738083793
+      },
+      {
+        "num_leaves": 63,
+        "min_data_in_leaf": 200,
+        "rounds": 9,
+        "val_logloss": 0.20545973031903209
+      },
+      {
+        "num_leaves": 63,
+        "min_data_in_leaf": 1000,
+        "rounds": 22,
+        "val_logloss": 0.2045955290898858
       }
     ]
   }

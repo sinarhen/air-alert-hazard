@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 
 from alerts.adjacency import OBLASTS
+from alerts.escalations import lines, red_onsets
 from alerts.sources import Coverage, load_alerts_in_ua, load_official
 
 GRID_START = pd.Timestamp("2025-11-01", tz="UTC")
@@ -51,6 +52,7 @@ def segments_for(new_coverage: Coverage) -> list[Segment]:
 def truncate(events: pd.DataFrame, cutoff: pd.Timestamp) -> pd.DataFrame:
     visible = events[events["started_at"] <= cutoff].copy()
     visible.loc[visible["finished_at"] > cutoff, "finished_at"] = pd.NaT
+    visible.loc[visible["red_from"] > cutoff, "red_from"] = pd.NaT
     return visible
 
 
@@ -96,14 +98,21 @@ def build_timeline(events: pd.DataFrame, segments: list[Segment], end: pd.Timest
             any_state[index, lo:hi] = union[lo:hi]
             share[index, lo:hi] = (np.mean(painted, axis=0) if painted else whole)[lo:hi]
             if segment.regime == NEW:
-                red_state[index, lo:hi] = _paint(mine[mine["level"] == "red"], GRID_START, lo, hi, size)[lo:hi]
+                red = mine.dropna(subset=["red_from"]).assign(started_at=lambda f: f["red_from"])
+                red_state[index, lo:hi] = _paint(red, GRID_START, lo, hi, size)[lo:hi]
     return Timeline(GRID_START, known, regime, np.array(sorted(starts)), any_state, red_state, share)
 
 
-def load(data_dir: Path, cutoff: pd.Timestamp | None = None) -> tuple[pd.DataFrame, Coverage, Timeline]:
+def load_events(data_dir: Path) -> tuple[pd.DataFrame, Coverage]:
     official = load_official(data_dir / "official_data_uk.csv")
     recent, coverage = load_alerts_in_ua(data_dir / "raw")
     events = pd.concat([official, recent], ignore_index=True)
+    events["red_from"] = red_onsets(events, lines(data_dir / "raw"))
+    return events, coverage
+
+
+def load(data_dir: Path, cutoff: pd.Timestamp | None = None) -> tuple[pd.DataFrame, Coverage, Timeline]:
+    events, coverage = load_events(data_dir)
     end = coverage.end
     if cutoff is not None:
         events = truncate(events, cutoff)

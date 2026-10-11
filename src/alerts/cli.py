@@ -1,14 +1,15 @@
+import json
 import os
 from pathlib import Path
 
 import pandas as pd
 import typer
 
-from alerts import evaluate as ev
+from alerts import escalations, evaluate as ev
 from alerts.forecast import describe, forecast as make_forecast
 from alerts.site import build, raion_finding
 from alerts.sources import download_official, fetch_alerts_in_ua
-from alerts.timeline import load
+from alerts.timeline import load, load_events
 
 app = typer.Typer(no_args_is_help=True)
 DATA = Path("data")
@@ -17,7 +18,7 @@ REPORTS = Path("reports")
 
 
 @app.command()
-def fetch(official: bool = True, recent: bool = True) -> None:
+def fetch(official: bool = True, recent: bool = True, channel: bool = True) -> None:
     DATA.mkdir(exist_ok=True)
     if official:
         typer.echo(f"official -> {download_official(DATA)}")
@@ -26,13 +27,27 @@ def fetch(official: bool = True, recent: bool = True) -> None:
         if not token:
             raise typer.BadParameter("set ALERTS_IN_UA_TOKEN")
         typer.echo(f"alerts.in.ua -> {fetch_alerts_in_ua(DATA / 'raw', token)}")
+    if channel:
+        missing = [name for name in ("TELEGRAM_API_ID", "TELEGRAM_API_HASH", "TELEGRAM_SESSION") if not os.environ.get(name)]
+        if missing:
+            raise typer.BadParameter(f"set {', '.join(missing)}")
+        paths = escalations.pull(DATA / "raw", os.environ["TELEGRAM_SESSION"], int(os.environ["TELEGRAM_API_ID"]), os.environ["TELEGRAM_API_HASH"])
+        typer.echo("telegram -> " + ", ".join(str(p) for p in paths))
 
 
 @app.command()
-def train(eval_name: str = typer.Option("e2", "--eval")) -> None:
+def check_escalations() -> None:
+    events, _ = load_events(DATA)
+    result = escalations.check(events, DATA / "raw", ("2026-09-10", "2026-10-02"))
+    (REPORTS / "escalations.json").write_text(json.dumps(result, indent=2, ensure_ascii=False, default=str))
+    typer.echo(json.dumps(result, indent=2, ensure_ascii=False, default=str))
+
+
+@app.command()
+def train(eval_name: str = typer.Option("e2", "--eval"), kinds: str = typer.Option("", help="comma-separated, e.g. red-start,red-end")) -> None:
     _, coverage, timeline = load(DATA)
     workspace = ev.Workspace(timeline)
-    ev.train(workspace, eval_name, ARTIFACTS, REPORTS)
+    ev.train(workspace, eval_name, ARTIFACTS, REPORTS, [k for k in kinds.split(",") if k] or None)
     ev.evaluate(workspace, eval_name, "val", ARTIFACTS, REPORTS)
     typer.echo(f"{eval_name}: trained, validation metrics in {REPORTS / eval_name}")
 
