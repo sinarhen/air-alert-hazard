@@ -7,6 +7,7 @@ import typer
 
 from alerts import escalations, evaluate as ev
 from alerts.forecast import describe, forecast as make_forecast
+from alerts.live import run as run_live
 from alerts.site import build, raion_finding
 from alerts.sources import download_official, fetch_alerts_in_ua
 from alerts.timeline import load, load_events
@@ -69,6 +70,14 @@ def forecast(at: str = typer.Option(..., help="UTC or offset-aware time, e.g. 20
         raise typer.BadParameter(f"no alert data covering {moment}")
     typer.echo(f"forecast at {moment} (only alerts started by then are used)")
     typer.echo(describe(make_forecast(timeline, minute, ARTIFACTS)))
+
+
+@app.command()
+def live(interval: int = 60, target: Path = Path("site")) -> None:
+    token = os.environ.get("ALERTS_IN_UA_TOKEN")
+    if not token:
+        raise typer.BadParameter("set ALERTS_IN_UA_TOKEN")
+    run_live(DATA, target, ARTIFACTS, token, interval)
 
 
 @app.command()

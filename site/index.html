@@ -171,7 +171,7 @@ function draw(){
   document.getElementById('c-now').classList.toggle('on',now);
   document.getElementById('c-warn').classList.toggle('on',L=='red');
   document.getElementById('c-when').textContent=kyiv(R.times[t]);
-  document.getElementById('c-period').textContent=now?'latest data':`replay of ${R.split=='test'?'the test period':'the validation days'}, ${day(R.times[0])} – ${day(R.times[last-1])}`;
+  document.getElementById('c-period').textContent=now?(liveAt?`live · polled ${new Date(liveAt).toLocaleTimeString('en-GB',{timeZone:'Europe/Kyiv',hour:'2-digit',minute:'2-digit'})}`:'latest data'):`replay of ${R.split=='test'?'the test period':'the validation days'}, ${day(R.times[0])} – ${day(R.times[last-1])}`;
   const what=L=='any'?'an alert':'a red alert',idx=D.oblasts.map((_,i)=>i),on=i=>lv.active[i][t]==1;
   const live=idx.filter(i=>M=='start'?!on(i):on(i)),off=idx.filter(i=>M=='start'?on(i):!on(i));
   const F=lv[M][h],O=lv[M+'_outcome'][h],scale=M=='start'?HEAT:GREEN,[stateFill,stateLabel,naText]=STATE[M];
@@ -207,7 +207,19 @@ function drawCurve(){
   Plotly.react('k-curve',[{x:xs,y:ys,mode:'lines+markers+text',text:ys.map(pct),textposition:'top center',line:{color,width:3},marker:{size:8,color},cliponaxis:false,customdata:xs.map(unit),hovertemplate:'%{text} within %{customdata}<extra></extra>'}],
     {...base(),margin:{l:44,r:24,t:24,b:44},yaxis:{range:[0,1.08],tickformat:'.0%',gridcolor:css('--line'),zeroline:false},xaxis:{type:'log',tickvals:xs,ticktext:xs.map(unit),gridcolor:css('--line'),title:{text:'time ahead',font:{size:12,color:css('--muted')}}},showlegend:false},cfg);
 }
-chips();draw();
+let liveAt=null;
+async function pollLive(){
+  try{
+    const r=await fetch('live.json',{cache:'no-store'});if(!r.ok)return;
+    const L=await r.json();if(L.polled_at==liveAt)return;
+    liveAt=L.polled_at;R.times[last]=L.at;
+    for(const lev of Object.keys(R.levels)){const lv=R.levels[lev];
+      L.table.forEach((row,i)=>{lv.active[i][last]=row[lev+'_active']?1:0;
+        for(const ph of ['start','end'])for(const m of D.horizons[ph])lv[ph][m][i][last]=row[`${lev}_${ph}_${m}m`]??null;});}
+    if(S.t==last)draw();
+  }catch(e){}
+}
+chips();draw();pollLive();setInterval(pollLive,60000);
 for(const id of ['m-f','m-o'])document.getElementById(id).on('plotly_click',ev=>{const p=ev.points[0];if(p.location==null)return;S.picked=D.oblasts.indexOf(p.location);drawCurve()});
 
 (function(){

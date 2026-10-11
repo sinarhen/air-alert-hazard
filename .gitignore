@@ -4,3 +4,4 @@ data/
 artifacts/
 .pytest_cache/
 .DS_Store
+site/live.json
