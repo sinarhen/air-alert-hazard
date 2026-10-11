@@ -6,9 +6,9 @@
 <title>Air Alert Hazard</title>
 <script src="__PLOTLY__"></script>
 <style>
-:root{--bg:#f6f6f4;--card:#fff;--ink:#1d1d1f;--muted:#6b6b70;--line:#e6e6e3;--soft:#f0f0ed;--na:#d6d6d9;--accent:#c2410c;--yellow:#f2c230;--red:#d6352b;--ease:cubic-bezier(.23,1,.32,1)}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111214;--card:#1a1b1e;--ink:#ececee;--muted:#9a9aa2;--line:#2a2b30;--soft:#232428;--na:#34353b;--accent:#fb923c}}
-:root[data-theme="dark"]{--bg:#111214;--card:#1a1b1e;--ink:#ececee;--muted:#9a9aa2;--line:#2a2b30;--soft:#232428;--na:#34353b;--accent:#fb923c}
+:root{--bg:#f6f6f4;--card:#fff;--ink:#1d1d1f;--muted:#6b6b70;--line:#e6e6e3;--soft:#f0f0ed;--accent:#c2410c;--yellow:#f2c230;--red:#d6352b;--ease:cubic-bezier(.23,1,.32,1)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111214;--card:#1a1b1e;--ink:#ececee;--muted:#9a9aa2;--line:#2a2b30;--soft:#232428;--accent:#fb923c}}
+:root[data-theme="dark"]{--bg:#111214;--card:#1a1b1e;--ink:#ececee;--muted:#9a9aa2;--line:#2a2b30;--soft:#232428;--accent:#fb923c}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;-webkit-font-smoothing:antialiased}
 header,main{max-width:1200px;margin:0 auto;padding:0 16px}
@@ -25,7 +25,7 @@ section.on{display:block}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:16px}
 .toolbar{display:flex;gap:20px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px}
 .field{display:flex;flex-direction:column;gap:6px}
-.field>span:first-child{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.field>span:first-child{font-size:13px;color:var(--muted)}
 .seg{display:inline-flex;flex-wrap:wrap;gap:2px;padding:3px;background:var(--soft);border-radius:10px}
 .seg button{background:none;border:0;border-radius:7px;padding:6px 12px;color:var(--muted);font:inherit;font-size:14px;cursor:pointer;white-space:nowrap;transition:background-color 160ms var(--ease),color 160ms var(--ease),transform 160ms var(--ease)}
 .seg button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1px var(--line)}
@@ -93,7 +93,7 @@ h3{font-size:16px;margin:0 0 6px}
       <div class="panel">
         <h2>Forecast</h2><p class="hint" id="m-hint"></p>
         <div id="m-f" class="map"></div>
-        <div class="legend"><span>0%</span><span class="ramp" id="m-ramp"></span><span>100%</span><span><i style="background:var(--na)"></i><span id="m-na"></span></span></div>
+        <div class="legend"><span>0%</span><span class="ramp" id="m-ramp"></span><span>100%</span><span><i id="m-na-swatch"></i><span id="m-na"></span></span></div>
       </div>
       <div class="panel">
         <h2>What happened next</h2><p class="hint" id="o-hint"></p>
@@ -122,8 +122,9 @@ const unit=m=>m<60?m+' min':m/60+' h';
 const kyiv=iso=>new Date(iso).toLocaleString('en-GB',{timeZone:'Europe/Kyiv',weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
 const day=iso=>new Date(iso).toLocaleDateString('en-GB',{timeZone:'Europe/Kyiv',day:'numeric',month:'short'});
 const HEAT=[[0,'#fff3e0'],[.25,'#fdc58d'],[.5,'#f9844a'],[.75,'#d7301f'],[1,'#7f0000']];
-const COOL=[[0,'#e8f0ff'],[.5,'#7aa2f7'],[1,'#1e3a8a']];
-const OUT={start:['#b91c1c','alert started','stayed quiet'],end:['#2563eb','alert ended','still on']};
+const GREEN=[[0,'#f0fdf4'],[.5,'#86efac'],[1,'#16a34a']];
+const STATE={start:['#4c0519','alert','under alert now'],end:['#14532d','quiet','quiet now']};
+const OUT={start:['#b91c1c','alert started','stayed quiet'],end:['#16a34a','alert ended','still on']};
 function showTab(t){const b=document.querySelector(`#tabs button[data-t="${t}"]`);if(!b)return;document.querySelectorAll('#tabs button,section').forEach(e=>e.classList.remove('on'));b.classList.add('on');document.getElementById(t).classList.add('on');window.dispatchEvent(new Event('resize'))}
 document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{history.replaceState(null,'','#'+b.dataset.t);showTab(b.dataset.t)});
 function seg(el,cb){el.querySelectorAll('button').forEach(b=>b.onclick=()=>{el.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');cb(b.dataset.v)})}
@@ -158,33 +159,36 @@ function draw(){
   document.getElementById('c-period').textContent=now?'latest data':`replay of ${R.split=='test'?'the test period':'the validation days'}, ${day(R.times[0])} – ${day(R.times[last-1])}`;
   const what=L=='any'?'an alert':'a red alert',idx=D.oblasts.map((_,i)=>i),on=i=>lv.active[i][t]==1;
   const live=idx.filter(i=>M=='start'?!on(i):on(i)),off=idx.filter(i=>M=='start'?on(i):!on(i));
-  const F=lv[M][h],O=lv[M+'_outcome'][h],scale=M=='start'?HEAT:COOL,naText=M=='start'?'under alert now':'quiet now';
+  const F=lv[M][h],O=lv[M+'_outcome'][h],scale=M=='start'?HEAT:GREEN,[stateFill,stateLabel,naText]=STATE[M];
   const verb=M=='start'?'starts':'ends';
   document.getElementById('m-hint').textContent=M=='start'?`Chance ${what} starts within ${unit(h)}, for each quiet oblast`:`Chance ${what} that is on now ends within ${unit(h)}`;
   document.getElementById('m-na').textContent=naText;
+  document.getElementById('m-na-swatch').style.background=stateFill;
   document.getElementById('m-ramp').style.background=`linear-gradient(to right,${scale.map(s=>s[1]).join(',')})`;
   const fz=live.map(i=>F[i][t]);
   Plotly.react('m-f',[
-    flat(off,css('--na'),off.map(i=>`${short(D.oblasts[i])}: ${naText}`)),
+    flat(off,stateFill,off.map(i=>`${short(D.oblasts[i])}: ${naText}`)),
     shape(live,fz,scale,live.map((i,j)=>`${short(D.oblasts[i])}: ${pct(fz[j])} chance it ${verb} within ${unit(h)}`)),
-    labels(live,fz.map(pct),fz.map(ink))],geoLayout(),cfg);
+    labels(live,fz.map(pct),fz.map(ink)),
+    labels(off,off.map(()=>stateLabel),off.map(()=>'#ffffff'))],geoLayout(),cfg);
   const [hit,yes,no]=OUT[M];
   document.getElementById('o-hint').textContent=M=='start'?`Did ${what} start within ${unit(h)}? Numbers repeat the forecast.`:`Did it end within ${unit(h)}? Numbers repeat the forecast.`;
-  document.getElementById('o-legend').innerHTML=`<span><i style="background:${hit}"></i>${yes}</span><span><i style="background:${css('--soft')};box-shadow:0 0 0 1px ${css('--line')}"></i>${no}</span><span><i style="background:${css('--na')}"></i>${naText}</span>`;
+  document.getElementById('o-legend').innerHTML=`<span><i style="background:${hit}"></i>${yes}</span><span><i style="background:${css('--soft')};box-shadow:0 0 0 1px ${css('--line')}"></i>${no}</span><span><i style="background:${stateFill}"></i>${naText}</span>`;
   document.getElementById('o-veil').classList.toggle('on',now);
   const known=live.filter(i=>O[i][t]!=null),unknown=live.filter(i=>O[i][t]==null);
   Plotly.react('m-o',[
-    flat(off,css('--na'),off.map(i=>`${short(D.oblasts[i])}: ${naText}`)),
+    flat(off,stateFill,off.map(i=>`${short(D.oblasts[i])}: ${naText}`)),
     shape(known,known.map(i=>O[i][t]),[[0,css('--soft')],[1,hit]],known.map(i=>`${short(D.oblasts[i])}: ${O[i][t]==1?yes:no} (forecast was ${pct(F[i][t])})`)),
     flat(unknown,css('--line'),unknown.map(i=>`${short(D.oblasts[i])}: unknown, data ends`)),
-    labels(known,known.map(i=>pct(F[i][t])),known.map(i=>O[i][t]==1?'#ffffff':css('--ink')))],geoLayout(),cfg);
+    labels(known,known.map(i=>pct(F[i][t])),known.map(i=>O[i][t]==1?'#ffffff':css('--ink'))),
+    labels(off,off.map(()=>stateLabel),off.map(()=>'#ffffff'))],geoLayout(),cfg);
   drawCurve();
 }
 function drawCurve(){
   const L=S.level,lv=R.levels[L]||R.levels.any,o=S.picked,t=S.t,active=lv.active[o][t]==1,phase=active?'end':'start',xs=D.horizons[phase];
   const what=L=='any'?'alert':'red alert';
   document.getElementById('k-title').textContent=`${short(D.oblasts[o])} — ${active?`under ${what}: chance it ends within…`:`quiet: chance ${L=='any'?'an alert':'a red alert'} starts within…`}`;
-  const color=active?'#2563eb':(L=='any'?css('--yellow'):css('--red')),ys=xs.map(m=>lv[phase][m][o][t]);
+  const color=active?'#16a34a':(L=='any'?css('--yellow'):css('--red')),ys=xs.map(m=>lv[phase][m][o][t]);
   Plotly.react('k-curve',[{x:xs,y:ys,mode:'lines+markers+text',text:ys.map(pct),textposition:'top center',line:{color,width:3},marker:{size:8,color},cliponaxis:false,customdata:xs.map(unit),hovertemplate:'%{text} within %{customdata}<extra></extra>'}],
     {...base(),margin:{l:44,r:24,t:24,b:44},yaxis:{range:[0,1.08],tickformat:'.0%',gridcolor:css('--line'),zeroline:false},xaxis:{type:'log',tickvals:xs,ticktext:xs.map(unit),gridcolor:css('--line'),title:{text:'time ahead',font:{size:12,color:css('--muted')}}},showlegend:false},cfg);
 }
