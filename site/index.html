@@ -155,7 +155,12 @@ function scaleColor(scale,v){
 function labels(idx,texts,colors,fills){
   const at=k=>D.labels[D.oblasts[k]],pick=f=>idx.map((k,j)=>f(k,j)).filter((_,j)=>idx[j]!=CITY),city=idx.indexOf(CITY);
   const out=[{type:'scattergeo',mode:'text',lon:pick(k=>at(k)[0]),lat:pick(k=>at(k)[1]),text:pick((_,j)=>texts[j]),textfont:{size:11,color:pick((_,j)=>colors[j]),family:FONT},hoverinfo:'skip'}];
-  if(city>=0)out.push({type:'scattergeo',mode:'markers+text',lon:[at(CITY)[0]],lat:[at(CITY)[1]],text:[texts[city]],textposition:'middle center',marker:{size:30,color:fills[city],line:{color:css('--card'),width:2}},textfont:{size:10,color:colors[city],family:FONT},hoverinfo:'skip'});
+  if(city>=0){
+    const [x,y]=at(CITY),[tx,ty]=[x-1.1,51.95];
+    out.push({type:'scattergeo',mode:'lines',lon:[x,tx+0.25],lat:[y,ty-0.12],line:{color:css('--muted'),width:1},hoverinfo:'skip'});
+    out.push({type:'scattergeo',mode:'markers',lon:[x],lat:[y],marker:{size:10,color:fills[city],line:{color:css('--ink'),width:1.5}},hoverinfo:'skip'});
+    out.push({type:'scattergeo',mode:'text',lon:[tx],lat:[ty],text:[`Kyiv · ${texts[city]}`],textfont:{size:11,color:css('--ink'),family:FONT},hoverinfo:'skip'});
+  }
   return out;
 }
 const ink=v=>v>.55?'#ffffff':'#1d1d1f';
