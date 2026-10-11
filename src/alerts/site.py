@@ -84,8 +84,11 @@ def replay(timeline: Timeline, artifacts: Path, now: pd.DataFrame, now_minute: i
     return {"split": split, "times": times, "levels": levels}
 
 
-def eda(timeline: Timeline) -> dict:
-    regimes = {"old": timeline.regime == OLD, "new": timeline.regime == NEW}
+def eda(timeline: Timeline, old_window: tuple[str, str] = ("2025-12-01", "2026-07-29")) -> dict:
+    lo, hi = (timeline.minute(pd.Timestamp(day, tz="UTC")) for day in old_window)
+    within = np.zeros(timeline.size, dtype=bool)
+    within[lo:hi] = True
+    regimes = {"old": (timeline.regime == OLD) & within & timeline.known, "new": (timeline.regime == NEW) & timeline.known}
     kyiv = timeline.time(np.arange(timeline.size)).tz_convert("Europe/Kyiv")
     hour, dow = kyiv.hour.to_numpy(), kyiv.dayofweek.to_numpy()
     onsets = timeline.any & ~np.concatenate([np.zeros((len(OBLASTS), 1), dtype=bool), timeline.any[:, :-1]], axis=1)

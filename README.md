@@ -47,9 +47,9 @@ uv run pytest
 
    | | Old system (Dec–Jul) | New: any | New: red |
    |---|---|---|---|
-   | Kyiv City | 5.7% | 31.3% | 2.7% |
-   | Kyiv oblast | 18.6% | 69.1% | 11.9% |
-   | Odesa | 18.9% | 40.4% | 6.8% |
+   | Kyiv City | 5.7% | 31.6% | 2.7% |
+   | Kyiv oblast | 18.6% | 69.1% | 11.6% |
+   | Odesa | 18.9% | 40.5% | 6.6% |
 
    The old data is a different event. It is used deliberately (see *Models*), never silently mixed in.
 5. **No raion is dropped.**
@@ -108,7 +108,7 @@ Brier skill vs. baseline, with 95% day-block bootstrap CI. Full tables, calibrat
 | any-start (logistic) | +9.9% [7.7, 12.0] | +14.7% [11.2, 18.5] | +12.2% [7.6, 17.0] | +6.8% [1.9, 11.8] | +2.0% [−1.8, 6.8] |
 | any-end (LightGBM) | +2.5% [1.1, 3.8] | +2.1% [0.8, 3.3] | +3.1% [1.7, 4.6] | +5.8% [4.0, 7.8] | |
 
-**E2 validation** (new system, 28 Sep – 1 Oct 2026). The E2 test runs once on 12 Oct, after the final data fetch.
+**E2 validation** (new system, 28 Sep – 1 Oct 2026). These days also chose the champion, early stopping and temperature, so the figures lean optimistic; the baseline got no such tuning. With only 4 days the CIs are wide (any-start 1 h: [+2, +13]; 6 h: [−6, +21]). The E2 test runs once on 12 Oct, after the final data fetch.
 
 | Model (champion) | 1 h / 15 min | 3 h / 30 min | 6 h / 60 min | 12 h / 120 min | 24 h |
 |---|---|---|---|---|---|
@@ -119,7 +119,7 @@ Brier skill vs. baseline, with 95% day-block bootstrap CI. Full tables, calibrat
 | red-start (logistic) | −0.4% | −3.1% | −0.8% | +0.5% | −9.6% |
 | red-end (LightGBM) | −1.2% | −2.3% | −1.8% | +0.8% | |
 
-- **Old data helps.** Old + new data beats either source alone at every horizon. The old-only collapse at 24 h is the regime shift in numbers.
+- **Old data helps.** On validation, old + new data beats either source alone at every horizon (point estimates; the differences have no CIs yet). The old-only collapse at 24 h is the regime shift in numbers.
 - **LightGBM vs. logistic.** LightGBM lost to logistic regression for E1 starts: trees learned on December–June did not transfer to July, while the proportional-hazards structure did. Hence champion selection by validation instead of assuming LightGBM.
 
 ## Leakage
@@ -141,7 +141,13 @@ Brier skill vs. baseline, with 95% day-block bootstrap CI. Full tables, calibrat
 - **Red models do not beat climatology on validation.** Red events in the new system are rare, and there are only ~2 weeks to learn from. The red forecast is still shown, labelled as no better than historical rates.
 - **any-start is overconfident above ~60%** (forecast 65–72% within 1 h → observed ~50% on validation).
 - **The General Staff recalibrates yellow/red criteria weekly.** This non-stationarity is reported, not modelled.
-- **Telegram text was not used** (decided up front). Monitoring posts mostly appear with or after the neighbouring alert that the model already sees; edited posts can leak later information; geocoding is a project of its own.
+- **Telegram text was not used.** Checked against @kpszsu and @war_monitor history (6 Sep – 1 Oct):
+  - no post came before the first red start of a wave: in all 24 of 24 cases a red start was already under way;
+  - posts made while red was quiet were followed by red within a median of 1 min, so they arrive with the alert, not ahead of it;
+  - the only signal is spread *within* a wave already under way (2.6–5× more new red oblasts in the next hour), which the national and neighbour features partly cover;
+  - edited and deleted posts make backfilled history differ from what was visible live.
+
+  Four validation days cannot show a gain this small, so it was left out.
 
 ## Layout
 
