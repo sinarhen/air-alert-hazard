@@ -59,7 +59,7 @@ def forecast(at: str = typer.Option(..., help="UTC or offset-aware time, e.g. 20
 @app.command()
 def report(target: Path = Path("site")) -> None:
     events, _, timeline = load(DATA)
-    path = build(timeline, ARTIFACTS, REPORTS, {"raions": raion_finding(events)}, target)
+    path = build(timeline, ARTIFACTS, {"raions": raion_finding(events)}, target)
     typer.echo(f"site -> {path}")
 
 

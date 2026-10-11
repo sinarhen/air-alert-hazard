@@ -99,7 +99,7 @@ Discrete-time hazard (survival) models. For each future bin k, the model predict
 
 ## Results
 
-Brier skill vs. baseline, with 95% day-block bootstrap CI. Full tables, calibration plots and per-oblast results are in the site's Scorecard tab and in `reports/`.
+Brier skill vs. baseline, with 95% day-block bootstrap CI. Full tables, calibration and per-oblast results are in `reports/`.
 
 **E1 test** (old system, 30 Jul – 28 Aug 2026; evaluated once):
 
