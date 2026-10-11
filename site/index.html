@@ -148,10 +148,14 @@ const geoLayout=()=>({...base(),geo:{visible:false,projection:{type:'mercator'},
 const shape=(idx,z,scale,text)=>({type:'choropleth',geojson:D.geo,featureidkey:'properties.name',locations:idx.map(i=>D.oblasts[i]),z,zmin:0,zmax:1,colorscale:scale,showscale:false,marker:{line:{color:css('--card'),width:1.2}},text,hovertemplate:'%{text}<extra></extra>'});
 const flat=(idx,color,text)=>shape(idx,idx.map(()=>0),[[0,color],[1,color]],text);
 const CITY=D.oblasts.indexOf('м. Київ');
-function labels(idx,texts,colors){
+function scaleColor(scale,v){
+  const hex=c=>[1,3,5].map(i=>parseInt(c.slice(i,i+2),16)),k=Math.max(1,scale.findIndex(s=>s[0]>=v)),[p,c0]=scale[k-1],[q,c1]=scale[k];
+  const f=q>p?(v-p)/(q-p):0,[x,y]=[hex(c0),hex(c1)];return `rgb(${x.map((u,i)=>Math.round(u+f*(y[i]-u))).join(',')})`;
+}
+function labels(idx,texts,colors,fills){
   const at=k=>D.labels[D.oblasts[k]],pick=f=>idx.map((k,j)=>f(k,j)).filter((_,j)=>idx[j]!=CITY),city=idx.indexOf(CITY);
   const out=[{type:'scattergeo',mode:'text',lon:pick(k=>at(k)[0]),lat:pick(k=>at(k)[1]),text:pick((_,j)=>texts[j]),textfont:{size:11,color:pick((_,j)=>colors[j]),family:FONT},hoverinfo:'skip'}];
-  if(city>=0)out.push({type:'scattergeo',mode:'markers+text',lon:[at(CITY)[0]],lat:[at(CITY)[1]],text:[texts[city]],textposition:'middle center',marker:{size:30,color:css('--card'),line:{color:css('--ink'),width:1}},textfont:{size:10,color:css('--ink'),family:FONT},hoverinfo:'skip'});
+  if(city>=0)out.push({type:'scattergeo',mode:'markers+text',lon:[at(CITY)[0]],lat:[at(CITY)[1]],text:[texts[city]],textposition:'middle center',marker:{size:30,color:fills[city],line:{color:css('--card'),width:2}},textfont:{size:10,color:colors[city],family:FONT},hoverinfo:'skip'});
   return out;
 }
 const ink=v=>v>.55?'#ffffff':'#1d1d1f';
@@ -175,8 +179,8 @@ function draw(){
   Plotly.react('m-f',[
     flat(off,stateFill,off.map(i=>`${short(D.oblasts[i])}: ${naText}`)),
     shape(live,fz,scale,live.map((i,j)=>`${short(D.oblasts[i])}: ${pct(fz[j])} chance it ${verb} within ${unit(h)}`)),
-    ...labels(live,fz.map(pct),fz.map(ink)),
-    ...labels(off,off.map(()=>stateLabel),off.map(()=>'#ffffff'))],geoLayout(),cfg);
+    ...labels(live,fz.map(pct),fz.map(ink),fz.map(v=>v==null?css('--soft'):scaleColor(scale,v))),
+    ...labels(off,off.map(()=>stateLabel),off.map(()=>'#ffffff'),off.map(()=>stateFill))],geoLayout(),cfg);
   const [hit,yes,no]=OUT[M];
   document.getElementById('o-hint').textContent=M=='start'?`Did ${what} start within ${unit(h)}? Numbers repeat the forecast.`:`Did it end within ${unit(h)}? Numbers repeat the forecast.`;
   document.getElementById('o-legend').innerHTML=`<span><i style="background:${hit}"></i>${yes}</span><span><i style="background:${css('--soft')};box-shadow:0 0 0 1px ${css('--line')}"></i>${no}</span><span><i style="background:${stateFill}"></i>${naText}</span>`;
@@ -186,8 +190,8 @@ function draw(){
     flat(off,stateFill,off.map(i=>`${short(D.oblasts[i])}: ${naText}`)),
     shape(known,known.map(i=>O[i][t]),[[0,css('--soft')],[1,hit]],known.map(i=>`${short(D.oblasts[i])}: ${O[i][t]==1?yes:no} (forecast was ${pct(F[i][t])})`)),
     flat(unknown,css('--line'),unknown.map(i=>`${short(D.oblasts[i])}: unknown, data ends`)),
-    ...labels(known,known.map(i=>pct(F[i][t])),known.map(i=>O[i][t]==1?'#ffffff':css('--ink'))),
-    ...labels(off,off.map(()=>stateLabel),off.map(()=>'#ffffff'))],geoLayout(),cfg);
+    ...labels(known,known.map(i=>pct(F[i][t])),known.map(i=>O[i][t]==1?'#ffffff':css('--ink')),known.map(i=>O[i][t]==1?hit:css('--soft'))),
+    ...labels(off,off.map(()=>stateLabel),off.map(()=>'#ffffff'),off.map(()=>stateFill))],geoLayout(),cfg);
   drawCurve();
 }
 function drawCurve(){
