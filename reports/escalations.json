@@ -7,6 +7,8 @@
     "red_alerts": 3712,
     "matched": 0.9386,
     "escalated": 1642,
+    "lowered_to_yellow": 390,
+    "red_inside_yellow_final": 119,
     "by_oblast": {
       "Івано-Франківська область": 1.0,
       "Волинська область": 0.75,
@@ -35,15 +37,25 @@
     }
   },
   "poller": {
-    "escalations": 47,
-    "in_history": 47,
-    "final_level_red": 42,
-    "matched": 42,
-    "early": 1,
-    "offset_seconds": {
-      "min": -401.378,
-      "median": 38.96,
-      "max": 274.91
+    "to_red": {
+      "switches": 0,
+      "matched": 0,
+      "within_10min": 0,
+      "offset_seconds": {
+        "min": null,
+        "median": null,
+        "max": null
+      }
+    },
+    "to_yellow": {
+      "switches": 0,
+      "matched": 0,
+      "within_10min": 0,
+      "offset_seconds": {
+        "min": null,
+        "median": null,
+        "max": null
+      }
     }
   },
   "official": {

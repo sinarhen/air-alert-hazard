@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 
 from alerts.adjacency import OBLASTS
-from alerts.escalations import lines, red_onsets
+from alerts.escalations import lines, red_switches
 from alerts.sources import Coverage, load_alerts_in_ua, load_official
 
 GRID_START = pd.Timestamp("2025-11-01", tz="UTC")
@@ -52,12 +52,20 @@ def segments_for(new_coverage: Coverage) -> list[Segment]:
 def truncate(events: pd.DataFrame, cutoff: pd.Timestamp) -> pd.DataFrame:
     visible = events[events["started_at"] <= cutoff].copy()
     visible.loc[visible["finished_at"] > cutoff, "finished_at"] = pd.NaT
-    visible.loc[visible["red_from"] > cutoff, "red_from"] = pd.NaT
+    visible["red"] = visible["red"].map(lambda switches: [(time, on) for time, on in switches if time <= cutoff])
     return visible
 
 
 def _minutes(values: pd.Series, origin: pd.Timestamp) -> np.ndarray:
     return np.ceil((values - origin) / pd.Timedelta(minutes=1)).to_numpy()
+
+
+def red_spells(rows: pd.DataFrame) -> pd.DataFrame:
+    spells = []
+    for switches, finished_at in zip(rows["red"], rows["finished_at"]):
+        ends = [time for time, _ in switches[1:]] + [finished_at]
+        spells += [(time, end) for (time, on), end in zip(switches, ends) if on]
+    return pd.DataFrame(spells, columns=["started_at", "finished_at"]).apply(pd.to_datetime, utc=True)
 
 
 def _paint(rows: pd.DataFrame, origin: pd.Timestamp, lo: int, hi: int, size: int) -> np.ndarray:
@@ -98,8 +106,7 @@ def build_timeline(events: pd.DataFrame, segments: list[Segment], end: pd.Timest
             any_state[index, lo:hi] = union[lo:hi]
             share[index, lo:hi] = (np.mean(painted, axis=0) if painted else whole)[lo:hi]
             if segment.regime == NEW:
-                red = mine.dropna(subset=["red_from"]).assign(started_at=lambda f: f["red_from"])
-                red_state[index, lo:hi] = _paint(red, GRID_START, lo, hi, size)[lo:hi]
+                red_state[index, lo:hi] = _paint(red_spells(mine), GRID_START, lo, hi, size)[lo:hi]
     return Timeline(GRID_START, known, regime, np.array(sorted(starts)), any_state, red_state, share)
 
 
@@ -107,7 +114,7 @@ def load_events(data_dir: Path) -> tuple[pd.DataFrame, Coverage]:
     official = load_official(data_dir / "official_data_uk.csv")
     recent, coverage = load_alerts_in_ua(data_dir / "raw")
     events = pd.concat([official, recent], ignore_index=True)
-    events["red_from"] = red_onsets(events, lines(data_dir / "raw"))
+    events["red"] = red_switches(events, lines(data_dir / "raw"))
     return events, coverage
 
 

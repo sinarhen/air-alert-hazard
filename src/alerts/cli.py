@@ -37,10 +37,10 @@ def fetch(official: bool = True, recent: bool = True, channel: bool = True) -> N
 
 
 @app.command()
-def check_escalations() -> None:
+def check_escalations(start: str = "2026-09-10", end: str = "2026-10-02", name: str = "escalations") -> None:
     events, _ = load_events(DATA)
-    result = escalations.check(events, DATA / "raw", ("2026-09-10", "2026-10-02"))
-    (REPORTS / "escalations.json").write_text(json.dumps(result, indent=2, ensure_ascii=False, default=str))
+    result = escalations.check(events, DATA / "raw", (start, end))
+    (REPORTS / f"{name}.json").write_text(json.dumps(result, indent=2, ensure_ascii=False, default=str))
     typer.echo(json.dumps(result, indent=2, ensure_ascii=False, default=str))
 
 

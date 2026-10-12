@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from alerts.escalations import lines, place, poller_escalations
+from alerts.escalations import DOWN, RED, lines, nearest_switch, place, poller_switches
 from alerts.features import KINDS, feature_frame, outcomes, warm_origins
 from alerts.timeline import NEW, OLD, build_timeline, load_events, segments_for, truncate
 
@@ -54,19 +54,22 @@ def test_labels_stop_at_split_end(corpus):
 def test_red_switch_is_a_public_post(corpus):
     events, _, _ = corpus
     posts = lines(DATA / "raw")
-    raised = events[events["red_from"] > events["started_at"]]
-    published = set(zip(posts.loc[posts["mark"] == "🔴", "place"], posts.loc[posts["mark"] == "🔴", "posted_at"]))
-    assert (events["red_from"].dropna() >= events.loc[events["red_from"].notna(), "started_at"]).all()
-    assert all(time in {t for name, t in published if name == place(raion)} for raion, time in zip(raised["raion"].fillna(raised["oblast"]), raised["red_from"]) if raion.endswith("район") or raion.startswith("м. "))
+    published = set(zip(posts["place"], posts["posted_at"], posts["mark"]))
+    for row in events[events["red"].map(len) > 0].itertuples():
+        assert all(time >= row.started_at for time, _ in row.red)
+        name = place(row.raion) if isinstance(row.raion, str) else row.oblast
+        if name.endswith("район") or name.startswith("м. "):
+            assert all((name, time, RED if on else DOWN) in published for time, on in row.red if time > row.started_at)
 
 
-def test_red_switch_matches_live_poller(corpus):
+@pytest.mark.parametrize("red", [True, False])
+def test_red_switch_matches_live_poller(corpus, red):
     events, _, _ = corpus
-    truth = poller_escalations(DATA / "raw" / "active_poll.jsonl")
+    truth = poller_switches(DATA / "raw" / "active_poll.jsonl")
+    truth = truth[truth["switched_at"] <= lines(DATA / "raw")["posted_at"].max()]
     history = events[events["source"] == "alerts_in_ua"].assign(title=lambda f: f["raion"].fillna(f["oblast"]))
-    joined = truth.merge(history, on=["title", "started_at"])
-    joined = joined[joined["level"] == "red"]
-    if joined.empty:
-        pytest.skip("no poller escalations inside the fetched history yet")
-    offset = (joined["red_from"] - joined["switched_at"]).dt.total_seconds()
-    assert offset.between(-600, 600).mean() >= 0.95
+    joined = truth[truth["red"] == red].merge(history, on=["title", "started_at"])
+    if len(joined) < 10:
+        pytest.skip("too few poller switches inside the fetched history")
+    offsets = [nearest_switch(row.red_y, row.switched_at, red) for row in joined.itertuples()]
+    assert np.mean([o is not None and abs(o) <= 600 for o in offsets]) >= 0.95

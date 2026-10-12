@@ -16,6 +16,7 @@ OFFICIAL = {
 }
 PULL_SINCE = datetime(2026, 9, 6, tzinfo=UTC)
 START_TOLERANCE = (pd.Timedelta(minutes=-1), pd.Timedelta(minutes=5))
+RED, DOWN = "🔴", "🟢🚀"
 LINE = re.compile(r"^(🟡|🔴|🟢\S*)\s+(?:\[(\d+)\]\s+)?(.+?)(?:\s+\(([^)]*)\))?$")
 OFFICIAL_LINE = re.compile(r"^(🟡|🔴|🟢)\s*(.+?)\s+[—-]\s+(?:повітряна тривога, (жовтий|червоний) рівень|відбій повітряної тривоги)")
 
@@ -86,48 +87,74 @@ def official_escalations(frame: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(out, columns=["posted_at", "place"])
 
 
-def red_onsets(events: pd.DataFrame, channel: pd.DataFrame) -> pd.Series:
-    red_lines = channel[channel["mark"] == "🔴"]
-    by_place = {name: group for name, group in red_lines.groupby("place")}
+def red_switches(events: pd.DataFrame, channel: pd.DataFrame) -> pd.Series:
+    marks = channel[channel["mark"].isin([RED, DOWN])]
+    by_place = {name: group for name, group in marks.groupby("place")}
     raions = events.dropna(subset=["raion"]).groupby("oblast")["raion"].unique()
-    onsets = pd.Series(pd.NaT, index=events.index, dtype="datetime64[ns, UTC]")
-    for index, row in events[(events["source"] == "alerts_in_ua") & (events["level"] == "red")].iterrows():
+    switches = pd.Series([[] for _ in range(len(events))], index=events.index, dtype=object)
+    local = (events["location_type"] == "raion") | events["oblast"].str.startswith("м. ")
+    eligible = (events["source"] == "alerts_in_ua") & ((events["level"] == "red") | ((events["level"] == "yellow") & local))
+    for index, row in events[eligible].iterrows():
         if row["location_type"] == "raion":
             names = [place(row["raion"])]
         elif row["oblast"].startswith("м. "):
             names = [row["oblast"]]
         else:
             names = [place(name) for name in raions.get(row["oblast"], [])]
-        candidates = pd.concat([by_place[name] for name in names if name in by_place]) if any(name in by_place for name in names) else red_lines.iloc[:0]
+        found = [by_place[name] for name in names if name in by_place]
+        candidates = pd.concat(found).sort_values("posted_at") if found else marks.iloc[:0]
         end = row["finished_at"] if pd.notna(row["finished_at"]) else pd.Timestamp.max.tz_localize(UTC)
-        opened = candidates[candidates["started"]]
+        red = candidates[candidates["mark"] == RED]
         lo, hi = row["started_at"] + START_TOLERANCE[0], row["started_at"] + START_TOLERANCE[1]
-        if opened["posted_at"].between(lo, hi).any():
-            onsets[index] = row["started_at"]
-            continue
-        raised = candidates[~candidates["started"] & candidates["posted_at"].between(row["started_at"], end)]
-        if len(raised):
-            onsets[index] = raised["posted_at"].min()
-    return onsets
+        if red.loc[red["started"], "posted_at"].between(lo, hi).any():
+            onset = row["started_at"]
+        else:
+            raised = red.loc[~red["started"] & red["posted_at"].between(row["started_at"], end), "posted_at"]
+            if raised.empty:
+                continue
+            onset = raised.min()
+        state = dict.fromkeys(names, True)
+        out = [(onset, True)]
+        later = candidates[~candidates["started"] & (candidates["posted_at"] > onset) & (candidates["posted_at"] < end)]
+        for posted_at, mark, name in zip(later["posted_at"], later["mark"], later["place"]):
+            state[name] = mark == RED
+            if any(state.values()) != out[-1][1]:
+                out.append((posted_at, not out[-1][1]))
+        switches[index] = out
+    return switches
 
 
-def poller_escalations(path: Path) -> pd.DataFrame:
-    seen, out = {}, []
+def first_red(switches: pd.Series) -> pd.Series:
+    return pd.to_datetime(switches.map(lambda s: s[0][0] if s else pd.NaT), utc=True)
+
+
+def poller_switches(path: Path, max_gap: pd.Timedelta = pd.Timedelta(minutes=2)) -> pd.DataFrame:
+    seen, out, previous = {}, [], None
     for text in path.read_text().splitlines():
         snapshot = json.loads(text)
+        polled = pd.Timestamp(snapshot["polled_at"])
+        fresh = previous is not None and polled - previous <= max_gap
         for alert in snapshot["body"]["alerts"]:
             if alert["alert_type"] != "air_raid" or alert["location_type"] not in ("raion", "oblast"):
                 continue
-            previous = seen.get(alert["id"])
-            if previous == "yellow" and alert["alert_level"] == "red":
-                out.append({"id": alert["id"], "title": alert["location_title"], "switched_at": pd.Timestamp(alert["updated_at"]), "started_at": pd.Timestamp(alert["started_at"])})
-            seen[alert["id"]] = alert["alert_level"]
-    return pd.DataFrame(out, columns=["id", "title", "switched_at", "started_at"])
+            level = alert["alert_level"]
+            before = seen.get(alert["id"])
+            if fresh and before in ("yellow", "red") and level in ("yellow", "red") and before != level:
+                out.append({"id": alert["id"], "title": alert["location_title"], "switched_at": pd.Timestamp(alert["updated_at"]), "started_at": pd.Timestamp(alert["started_at"]), "red": level == "red"})
+            seen[alert["id"]] = level
+        previous = polled
+    return pd.DataFrame(out, columns=["id", "title", "switched_at", "started_at", "red"])
+
+
+def nearest_switch(switches: list, at: pd.Timestamp, red: bool) -> float | None:
+    offsets = [(time - at).total_seconds() for time, on in switches if on == red]
+    return min(offsets, key=abs, default=None)
 
 
 def check(events: pd.DataFrame, raw_dir: Path, window: tuple[str, str]) -> dict:
     channel = lines(raw_dir)
-    onsets = red_onsets(events, channel)
+    switches = red_switches(events, channel)
+    onsets = first_red(switches)
     lo, hi = (pd.Timestamp(day, tz="UTC") for day in window)
     red = events[(events["source"] == "alerts_in_ua") & (events["level"] == "red") & events["started_at"].between(lo, hi)]
     matched = onsets[red.index].notna()
@@ -136,25 +163,28 @@ def check(events: pd.DataFrame, raw_dir: Path, window: tuple[str, str]) -> dict:
         "red_alerts": int(len(red)),
         "matched": round(float(matched.mean()), 4),
         "escalated": int((onsets[red.index] > red["started_at"]).sum()),
+        "lowered_to_yellow": int(switches[red.index].map(lambda s: any(not on for _, on in s)).sum()),
+        "red_inside_yellow_final": int(switches[events["started_at"].between(lo, hi) & (events["level"] == "yellow")].map(len).gt(0).sum()),
         "by_oblast": {oblast: round(float(group.mean()), 3) for oblast, group in matched.groupby(red["oblast"])},
     }
 
-    poll = poller_escalations(raw_dir / "active_poll.jsonl")
+    poll = poller_switches(raw_dir / "active_poll.jsonl")
     history = events[events["source"] == "alerts_in_ua"].assign(title=lambda f: f["raion"].fillna(f["oblast"]))
     history = history.reset_index().rename(columns={"index": "row"})[["row", "title", "started_at", "level"]]
     joined = poll.merge(history, on=["title", "started_at"], how="inner")
-    offsets = [(onsets[row.row] - row.switched_at).total_seconds() for row in joined.itertuples() if pd.notna(onsets[row.row])]
-    poller = {
-        "escalations": int(len(poll)),
-        "in_history": int(len(joined)),
-        "final_level_red": int((joined["level"] == "red").sum()),
-        "matched": int(len(offsets)),
-        "early": int(sum(o < 0 for o in offsets)),
-        "offset_seconds": {"min": min(offsets, default=None), "median": float(np.median(offsets)) if offsets else None, "max": max(offsets, default=None)},
-    }
+    joined = joined[joined["switched_at"].between(lo, min(hi, channel["posted_at"].max()))]
+    poller = {}
+    for direction, rows in (("to_red", joined[joined["red"]]), ("to_yellow", joined[~joined["red"]])):
+        offsets = [o for row in rows.itertuples() if (o := nearest_switch(switches[row.row], row.switched_at, row.red)) is not None]
+        poller[direction] = {
+            "switches": int(len(rows)),
+            "matched": int(len(offsets)),
+            "within_10min": int(sum(abs(o) <= 600 for o in offsets)),
+            "offset_seconds": {"min": min(offsets, default=None), "median": float(np.median(offsets)) if offsets else None, "max": max(offsets, default=None)},
+        }
 
     official = {}
-    escalation_lines = channel[(channel["mark"] == "🔴") & ~channel["started"]]
+    escalation_lines = channel[(channel["mark"] == RED) & ~channel["started"]]
     for handle, oblast in OFFICIAL.items():
         theirs = official_escalations(official_lines(raw_dir, handle))
         theirs = theirs[theirs["posted_at"].between(lo, hi)]

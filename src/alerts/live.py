@@ -26,10 +26,10 @@ def snapshot(raw_dir: Path, token: str) -> dict:
 
 def poll_events(path: Path, after: pd.Timestamp) -> tuple[pd.DataFrame, pd.Timestamp]:
     seen: dict[int, dict] = {}
-    polled = after
+    polled = previous = after
     for text in path.read_text().splitlines():
         record = json.loads(text)
-        polled = pd.Timestamp(record["polled_at"])
+        previous, polled = polled, pd.Timestamp(record["polled_at"])
         if polled < after:
             continue
         present = set()
@@ -37,9 +37,13 @@ def poll_events(path: Path, after: pd.Timestamp) -> tuple[pd.DataFrame, pd.Times
             if alert["alert_type"] != "air_raid" or alert["location_type"] not in DECLARATION_LEVELS or alert["location_oblast"] in EXCLUDED_OBLASTS:
                 continue
             present.add(alert["id"])
-            entry = seen.setdefault(alert["id"], {"level": None, "red_from": pd.NaT, "finished_at": pd.NaT})
-            if alert["alert_level"] == "red" and pd.isna(entry["red_from"]):
-                entry["red_from"] = pd.Timestamp(alert["started_at"] if entry["level"] is None else alert["updated_at"])
+            entry = seen.setdefault(alert["id"], {"level": None, "red": [], "finished_at": pd.NaT})
+            started_at = pd.Timestamp(alert["started_at"])
+            on = alert["alert_level"] == "red"
+            if entry["level"] is None and on:
+                entry["red"].append((started_at if started_at > previous else polled, True))
+            elif entry["level"] is not None and on != (entry["level"] == "red"):
+                entry["red"].append((max(pd.Timestamp(alert["updated_at"]), started_at), on))
             entry["alert"] = alert
             entry["level"] = alert["alert_level"]
             entry["finished_at"] = pd.NaT
@@ -55,25 +59,29 @@ def poll_events(path: Path, after: pd.Timestamp) -> tuple[pd.DataFrame, pd.Times
             "level": e["level"],
             "started_at": pd.Timestamp(e["alert"]["started_at"]),
             "finished_at": e["finished_at"],
-            "red_from": e["red_from"],
+            "red": e["red"],
         }
         for e in seen.values()
     ]
-    return pd.DataFrame(rows, columns=[*COLUMNS, "red_from"]), polled
+    return pd.DataFrame(rows, columns=[*COLUMNS, "red"]), polled
+
+
+def _union(*switch_lists: list) -> list:
+    out = []
+    for time, on in sorted(switch for switches in switch_lists for switch in switches):
+        if not out or out[-1][1] != on:
+            out.append((time, on))
+    return out if not out or out[0][1] else out[1:]
 
 
 def merge(history: pd.DataFrame, live: pd.DataFrame) -> pd.DataFrame:
     combined = pd.concat([history, live], ignore_index=True)
     combined["raion_key"] = combined["raion"].fillna("")
     key = ["source", "oblast", "location_type", "raion_key", "started_at"]
-    live_wins = combined.duplicated(key, keep="last")
-    history_rows = combined[live_wins]
-    combined = combined.drop_duplicates(key, keep="last").copy()
-    earlier = history_rows.set_index(key)["red_from"]
-    joined = combined.set_index(key)
-    earlier = earlier.reindex(joined.index)
-    joined["red_from"] = earlier.where(earlier.notna(), joined["red_from"])
-    return joined.reset_index().drop(columns="raion_key")[[*COLUMNS, "red_from"]]
+    earlier = combined[combined.duplicated(key, keep="last")].set_index(key)["red"]
+    joined = combined.drop_duplicates(key, keep="last").set_index(key)
+    joined["red"] = [_union(mine, earlier.get(index, [])) for index, mine in zip(joined.index, joined["red"])]
+    return joined.reset_index().drop(columns="raion_key")[[*COLUMNS, "red"]]
 
 
 def run(data_dir: Path, site_dir: Path, artifacts: Path, token: str, interval: int = 60) -> None:

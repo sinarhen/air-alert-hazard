@@ -5,7 +5,8 @@
     "champion": "lightgbm",
     "val_log_loss": {
       "lightgbm": 0.20442165784008376,
-      "logistic": 0.2183146520264712
+      "logistic": 0.2183146520264712,
+      "climatology": 0.2301833439294441
     },
     "temperature": 0.9145915769508774,
     "trials": [
@@ -149,7 +150,8 @@
     "champion": "lightgbm",
     "val_log_loss": {
       "lightgbm": 0.22916393787720052,
-      "logistic": 0.23268627497846417
+      "logistic": 0.23268627497846417,
+      "climatology": 0.23311620496771743
     },
     "temperature": 0.9622993341754013,
     "trials": [
@@ -288,100 +290,100 @@
     ]
   },
   "red-start/main": {
-    "train_rows": 111753,
-    "events": 3300,
+    "train_rows": 112727,
+    "events": 3390,
     "champion": "climatology",
     "val_log_loss": {
-      "lightgbm": 0.09284440688242113,
-      "logistic": 0.09412765203169211,
-      "climatology": 0.08580912800109858
+      "lightgbm": 0.0918711773917509,
+      "logistic": 0.09365378751476153,
+      "climatology": 0.08623747857071737
     },
-    "temperature": 0.9252745096373782,
+    "temperature": 0.8617526159003414,
     "trials": [
       {
         "num_leaves": 15,
         "min_data_in_leaf": 200,
-        "rounds": 50,
-        "val_logloss": 0.09705488283747293
+        "rounds": 12,
+        "val_logloss": 0.09731580752349606
       },
       {
         "num_leaves": 15,
         "min_data_in_leaf": 1000,
+        "rounds": 30,
+        "val_logloss": 0.09477321410383607
+      },
+      {
+        "num_leaves": 31,
+        "min_data_in_leaf": 200,
+        "rounds": 12,
+        "val_logloss": 0.09913123287508047
+      },
+      {
+        "num_leaves": 31,
+        "min_data_in_leaf": 1000,
         "rounds": 36,
-        "val_logloss": 0.09360129563488492
-      },
-      {
-        "num_leaves": 31,
-        "min_data_in_leaf": 200,
-        "rounds": 7,
-        "val_logloss": 0.09917869449314805
-      },
-      {
-        "num_leaves": 31,
-        "min_data_in_leaf": 1000,
-        "rounds": 17,
-        "val_logloss": 0.09611310243553309
+        "val_logloss": 0.09615664665592262
       },
       {
         "num_leaves": 63,
         "min_data_in_leaf": 200,
-        "rounds": 8,
-        "val_logloss": 0.09935680348014324
+        "rounds": 5,
+        "val_logloss": 0.09970926469088529
       },
       {
         "num_leaves": 63,
         "min_data_in_leaf": 1000,
-        "rounds": 25,
-        "val_logloss": 0.09688247902312293
+        "rounds": 30,
+        "val_logloss": 0.0983285465969581
       }
     ]
   },
   "red-end/main": {
-    "train_rows": 80604,
-    "events": 3421,
+    "train_rows": 68761,
+    "events": 3426,
     "champion": "lightgbm",
     "val_log_loss": {
-      "lightgbm": 0.20290477503235696,
-      "logistic": 0.23235851679200734,
-      "climatology": 0.2110402225165721
+      "lightgbm": 0.24239711249392104,
+      "logistic": 0.26201427660090887,
+      "climatology": 0.2520567955806738
     },
-    "temperature": 0.9658423478653977,
+    "temperature": 0.9624829170573174,
     "trials": [
       {
         "num_leaves": 15,
         "min_data_in_leaf": 200,
-        "rounds": 16,
-        "val_logloss": 0.20441405991310346
+        "rounds": 53,
+        "val_logloss": 0.2448316263082919
       },
       {
         "num_leaves": 15,
         "min_data_in_leaf": 1000,
-        "rounds": 25,
-        "val_logloss": 0.2031337511155056
+        "rounds": 135,
+        "val_logloss": 0.24265502325355973
       },
       {
         "num_leaves": 31,
         "min_data_in_leaf": 200,
-        "rounds": 10,
-        "val_logloss": 0.2042389064316903
+        "rounds": 29,
+        "val_logloss": 0.24371854987055058
       },
       {
         "num_leaves": 31,
         "min_data_in_leaf": 1000,
-        "rounds": 19,
-        "val_logloss": 0.20415203738083793
+        "rounds": 85,
+        "val_logloss": 0.24305308792381639
       },
       {
         "num_leaves": 63,
         "min_data_in_leaf": 200,
-        "rounds": 9,
-        "val_logloss": 0.20545973031903209
-      },
-      {
-        "num_leaves": 63,
-        "min_data_in_leaf": 1000,
         "rounds": 22,
-        "val_logloss": 0.2045955290898858
+        "val_logloss": 0.24622231690234464
+      },
+      {
+        "num_leaves": 63,
+        "min_data_in_leaf": 1000,
+        "rounds": 57,
+        "val_logloss": 0.24313732469666063
       }
     ]
   }
