@@ -7,7 +7,9 @@ Per oblast, at any moment, this project answers two questions people actually as
 
 Both are answered for **any alert** (yellow or red) and for **red alerts** (missiles, ballistic, massed attack), matching the two-level system Ukraine introduced on 6 September 2026.
 
-Everything is computed only from alerts declared before the forecast time. That is enforced in code and checked by a test (see *Leakage*).
+Everything is computed only from alerts declared, and Telegram posts published, before the forecast time. That is enforced in code and checked by a test (see *Leakage*).
+
+Submission files: [`AI_LOG.txt`](AI_LOG.txt) is the full AI conversation log (Claude Code export), [`REFLECTION.txt`](REFLECTION.txt) the reflection.
 
 ## Quick start
 
@@ -16,13 +18,15 @@ uv sync
 export ALERTS_IN_UA_TOKEN=...          # https://devs.alerts.in.ua (free, by request)
 export TELEGRAM_API_ID=... TELEGRAM_API_HASH=... TELEGRAM_SESSION=...   # read-only channel pull
 uv run alerts fetch                    # official CSV, 30-day alerts.in.ua history, @air_alert_map (append-only)
-uv run alerts check-escalations        # red switch-time checks
+uv run alerts check-escalations        # red switch-time checks (--start/--end/--name for another window)
 uv run alerts train --eval e1          # old-system method check: train + validation metrics
 uv run alerts train --eval e2          # new-system models: train + validation metrics
 uv run alerts evaluate --eval e1 --split test
 uv run alerts evaluate --eval e2 --split test
 uv run alerts forecast --at 2026-10-09T18:00Z
 uv run alerts report                   # site/index.html
+uv run alerts live                     # poll active alerts every 60 s, refresh the Now forecast (site/live.json)
+python -m http.server -d site 8000     # open http://127.0.0.1:8000
 uv run pytest
 ```
 
@@ -33,7 +37,9 @@ uv run pytest
 | [Vadimkin/ukrainian-air-raid-sirens-dataset](https://github.com/Vadimkin/ukrainian-air-raid-sirens-dataset) `official_data_uk.csv` | Declarations scraped from the official `@air_alert_ua` channel; oblast/raion/hromada level; no type or level | Old system, Dec 2025 – Aug 2026 |
 | [alerts.in.ua](https://devs.alerts.in.ua) `regions/{uid}/alerts/month_ago.json` | Declarations with `alert_type` and `alert_level` (red/yellow); rolling 30-day window | New system, 10 Sep 2026 onward |
 | Telegram [@air_alert_map](https://t.me/air_alert_map) (unofficial) | A `🔴 <raion>` line when an alert is raised to red, `🟢🚀 <raion>` when it is lowered back to yellow | When each alert was red (see *Leakage*) |
-| alerts.in.ua `alerts/active.json`, polled every ~40 s | Live level of every active alert | Ground truth for the escalation check, from 10 Oct |
+| Telegram oblast administration channels: @kyivoda, @VinnytsiaODA, @khersonskaODA, @ODA_RV | Official per-raion posts with the alert level | Cross-check of the @air_alert_map switch times |
+| Telegram @kpszsu (Air Force), @war_monitor | Threat and launch posts | Tested as forecast input; not used (see *Text data*) |
+| alerts.in.ua `alerts/active.json`, polled every 40–60 s (`alerts live`) | Live level of every active alert | Ground truth for the escalation check from 10 Oct, and the live Now forecast |
 
 ### Findings that shaped the design
 
@@ -158,6 +164,28 @@ Brier skill vs. baseline, with 95% day-block bootstrap CI. Full tables, calibrat
   - **Tests.** Every red on/off switch is a public channel post at or after the alert start, and the backfilled switches match the poller within 10 min in both directions (the red → yellow case is skipped until the poller has 10 of them); painting red from the yellow start again fails the test.
   - **Effect** on validation (`reports/e2/val_metrics_leaky_red.json` vs `val_metrics.json`): red-end went from no skill to +8.4% at 2 h [4.8, 10.8] (+8.8% [0.3, 16.8] after the red → yellow fix); red-start fell to −6% to −22% beyond 3 h, so historical rates are served for it.
 
+## Text data (Telegram)
+
+The task's optional part, with the same rule: only posts published before the forecast time.
+
+- **Used: red switch times.** @air_alert_map posts are what makes red-level data leak-free (see *Leakage*). Every switch time is a post time, so red is never marked before it was public. The posts are pulled read-only with Telethon (`alerts fetch`), deduplicated by message id, and checked against the live API and four official oblast channels.
+- **Tested as forecast input, not used: @kpszsu and @war_monitor** (6 Sep – 1 Oct):
+  - no post came before the first red start of a wave: in all 24 of 24 cases a red start was already under way;
+  - posts made while red was quiet were followed by red within a median of 1 min, so they arrive with the alert, not ahead of it;
+  - the only signal is spread *within* a wave already under way (2.6–5× more new red oblasts in the next hour), which the national and neighbour features partly cover;
+  - edited and deleted posts make backfilled history differ from what was visible live.
+
+  Four validation days cannot show a gain this small, and the test period is spent, so it was left out rather than tuned on test data.
+- **Not used: news sites and official statements.** They come after the Telegram channels above, so they cannot carry an earlier signal.
+
+## Site
+
+`alerts report` builds `site/index.html`, a static page (Plotly):
+
+- **Forecast & replay:** pick alert level (any / red), question (will one start? / will it end?) and horizon; scrub hour by hour through the E2 test period. Left map: the forecast made at that hour; right map: what actually happened next; below: the full curve for the chosen oblast. The last step is **Now**.
+- **Live:** while `alerts live` runs, the page reloads `site/live.json` every minute, so Now shows the current alert state and forecast. The poller merges alerts seen since the last full fetch into the history, with live red/yellow switch times.
+- **Data:** the 6 Sep regime shift (time under alert per oblast, old vs. new), alert starts by hour and weekday, which oblasts are under alert together, and how raions merge into oblasts.
+
 ## Limits
 
 - **The E2 test is short** (10 days), so its confidence intervals are wide. That is why E1 exists.
@@ -166,13 +194,7 @@ Brier skill vs. baseline, with 95% day-block bootstrap CI. Full tables, calibrat
 - **Red switch times come from an unofficial channel.** It agrees with the live poller and with four official oblast channels, but its September accuracy rests on that agreement; 70% of its posts were edited later (we only see the final text); 6.1% of red alerts have no switch time and are treated as not red; red → yellow drops are checked against only 2 poller observations so far.
 - **any-start is overconfident above ~60%** (forecast 65–72% within 1 h → observed ~50% on validation).
 - **The General Staff recalibrates yellow/red criteria weekly.** This non-stationarity is reported, not modelled.
-- **Telegram text was not used.** Checked against @kpszsu and @war_monitor history (6 Sep – 1 Oct):
-  - no post came before the first red start of a wave: in all 24 of 24 cases a red start was already under way;
-  - posts made while red was quiet were followed by red within a median of 1 min, so they arrive with the alert, not ahead of it;
-  - the only signal is spread *within* a wave already under way (2.6–5× more new red oblasts in the next hour), which the national and neighbour features partly cover;
-  - edited and deleted posts make backfilled history differ from what was visible live.
-
-  Four validation days cannot show a gain this small, so it was left out.
+- **Live mode runs locally.** It needs the poller loop and a local server; nothing is deployed.
 
 ## Layout
 
@@ -186,7 +208,11 @@ src/alerts/
   models.py      LightGBM, logistic, climatology/life-table baselines, champion selection
   evaluate.py    E1/E2 splits, metrics, bootstrap, ablation
   forecast.py    forecast at an arbitrary time
+  live.py        1-minute poller of active alerts, live Now forecast
   site.py        static HTML (assets/site.html template, assets/oblasts.geojson)
-  cli.py         fetch | train | evaluate | forecast | report
+  cli.py         fetch | check-escalations | train | evaluate | forecast | report | live
 tests/test_leakage.py
+reports/         metrics, escalation checks, test log
+AI_LOG.txt       full AI conversation log
+REFLECTION.txt   reflection
 ```
