@@ -1,0 +1,5 @@
+what went wrong: first plan was train on old official data and test on september, but i forgot that from 6 sep alerts are yellow and red now. then review agents found red models were cheating, alerts.in.ua history keeps only final level so alert that turned red later looks red from start
+
+how i adjusted: i didnt accept "no source has transition times". found telegram channel with them but didnt trust it, so pushed ai to check it against live api and official oblast channels
+
+why its better: in first version red numbers were fake bc of leak. final one doesnt cheat, i made ai verify it with tests and live api. tested once on last 10 days, alert starts are 9-15% better than just past averages
