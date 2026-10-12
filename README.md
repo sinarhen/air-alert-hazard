@@ -32,7 +32,7 @@ uv run pytest
 |---|---|---|
 | [Vadimkin/ukrainian-air-raid-sirens-dataset](https://github.com/Vadimkin/ukrainian-air-raid-sirens-dataset) `official_data_uk.csv` | Declarations scraped from the official `@air_alert_ua` channel; oblast/raion/hromada level; no type or level | Old system, Dec 2025 – Aug 2026 |
 | [alerts.in.ua](https://devs.alerts.in.ua) `regions/{uid}/alerts/month_ago.json` | Declarations with `alert_type` and `alert_level` (red/yellow); rolling 30-day window | New system, 10 Sep 2026 onward |
-| Telegram [@air_alert_map](https://t.me/air_alert_map) (unofficial) | A separate `🔴 <raion>` line whenever an alert is raised to red | When each alert turned red (see *Leakage*) |
+| Telegram [@air_alert_map](https://t.me/air_alert_map) (unofficial) | A `🔴 <raion>` line when an alert is raised to red, `🟢🚀 <raion>` when it is lowered back to yellow | When each alert was red (see *Leakage*) |
 | alerts.in.ua `alerts/active.json`, polled every ~40 s | Live level of every active alert | Ground truth for the escalation check, from 10 Oct |
 
 ### Findings that shaped the design
@@ -112,7 +112,7 @@ Brier skill vs. baseline, with 95% day-block bootstrap CI. Full tables, calibrat
 | any-start (logistic) | +9.9% [7.7, 12.0] | +14.7% [11.2, 18.5] | +12.2% [7.6, 17.0] | +6.8% [1.9, 11.8] | +2.0% [−1.8, 6.8] |
 | any-end (LightGBM) | +2.5% [1.1, 3.8] | +2.1% [0.8, 3.3] | +3.1% [1.7, 4.6] | +5.8% [4.0, 7.8] | |
 
-**E2 validation** (new system, 28 Sep – 1 Oct 2026). These days also chose the champion, early stopping and temperature, so the figures lean optimistic; the baseline got no such tuning. With only 4 days the CIs are wide (any-start 1 h: [+2, +13]; 6 h: [−6, +21]). The E2 test runs once on 12 Oct, after the final data fetch.
+**E2 validation** (new system, 28 Sep – 1 Oct 2026). These days also chose the champion, early stopping and temperature, so the figures lean optimistic; the baseline got no such tuning. With only 4 days the CIs are wide (any-start 1 h: [+2, +13]; 6 h: [−6, +21]).
 
 | Model (champion) | 1 h / 15 min | 3 h / 30 min | 6 h / 60 min | 12 h / 120 min | 24 h |
 |---|---|---|---|---|---|
@@ -121,8 +121,19 @@ Brier skill vs. baseline, with 95% day-block bootstrap CI. Full tables, calibrat
 | any-start, old data only | +4.4% | +3.0% | +1.8% | −2.4% | −18.8% |
 | any-end (LightGBM) | +0.3% | −0.6% | −0.4% | +4.2% | |
 | red-start (historical rates) | 0 | 0 | 0 | 0 | 0 |
-| red-end (LightGBM) | +1.6% [−5.6, 6.6] | +1.1% [−5.8, 6.2] | +3.2% [−5.1, 8.8] | +8.4% [4.8, 10.8] | |
+| red-end (LightGBM) | +0.2% [−3.2, 4.1] | +1.3% [−2.6, 5.0] | +5.7% [−0.5, 11.5] | +8.8% [0.3, 16.8] | |
 
+**E2 test** (new system, 2 – 12 Oct 2026, data fetched 12 Oct 10:13 UTC; evaluated once, model hash `364209c05886054c` in `reports/test_log.jsonl`):
+
+| Model (champion) | 1 h / 15 min | 3 h / 30 min | 6 h / 60 min | 12 h / 120 min | 24 h |
+|---|---|---|---|---|---|
+| any-start (LightGBM, old + new) | +9.3% [4.9, 15.0] | +14.0% [4.6, 26.9] | +15.1% [2.0, 28.2] | +13.8% [−2.3, 28.2] | +8.1% [−8.9, 24.0] |
+| any-end (LightGBM) | +0.2% [−1.4, 1.6] | +0.4% [−1.8, 2.5] | +1.9% [−0.5, 4.0] | +4.6% [0.9, 8.3] | |
+| red-start (historical rates) | 0 | 0 | 0 | 0 | 0 |
+| red-end (LightGBM) | −1.0% [−2.8, 0.6] | +0.6% [−1.7, 2.8] | +0.1% [−4.9, 5.5] | +0.4% [−5.9, 7.6] | |
+
+- **What held up.** any-start beats the baseline on unseen days, clearly up to 6 h, and is better calibrated (ECE 0.02–0.07 vs 0.05–0.08). any-end only helps at 2 h (+4.6%), as on E1 and validation.
+- **What did not.** red-end's validation gain (+8.8% at 2 h) did not carry over: on test it is indistinguishable from historical rates, and less calibrated than them (ECE 0.03–0.08 vs 0.01–0.05). Red-start was already served as historical rates, so it cannot lose to them.
 - **Old data helps.** On validation, old + new data beats either source alone at every horizon (point estimates; the differences have no CIs yet). The old-only collapse at 24 h is the regime shift in numbers.
 - **LightGBM vs. logistic.** LightGBM lost to logistic regression for E1 starts: trees learned on December–June did not transfer to July, while the proportional-hazards structure did. Hence champion selection by validation instead of assuming LightGBM.
 
@@ -139,18 +150,20 @@ Brier skill vs. baseline, with 95% day-block bootstrap CI. Full tables, calibrat
   - **Proof.** A live poller of `active.json` saw 51 alerts change yellow → red under the same id. A re-fetch of their history showed every one as red from the start, with `updated_at` overwritten by the finish time. No official API keeps the switch time.
   - **Size.** 1,642 of 3,712 red alerts (44%) in the training and validation window were raised in place, so the red models had learned from red that had not been declared yet.
   - **Fix.** Switch times are backfilled from @air_alert_map (`escalations.py`): red starts at the alert start if the channel announced it as red (`🔴 [n]`), at the post time of the channel's `🔴` line if it was raised later, and is left out if neither is found. The channel posts after the real switch, so red is never marked earlier than it was public.
+  - **Red can also go back to yellow** (found on 12 Oct, before the test run). The channel posts `🟢🚀 <raion>` when an alert is lowered to yellow, and the poller confirms the same alert id going red → yellow → red. Each alert now carries a list of red on/off switches, not one start time: 390 of 3,712 red alerts in the training and validation window were lowered at least once (red time overstated by up to 15%), and 119 raion/city alerts that *ended* yellow had been red for a while (previously never red). On alerts the poller watched start to finish, those yellow-ending ones were confirmed red in 23 of 28 cases. Oblast-wide alerts that ended yellow are left out, because a raion's `🔴` line there may belong to that raion's own alert. All four models were retrained before the test; the any-models' validation scores did not change.
   - **Checks** (`alerts check-escalations`, `reports/escalations.json`):
-    - coverage: 93.9% of red alerts get a switch time;
-    - live poller: 42 of 42 switches matched, median 39 s after the true switch; one was 6.7 min ahead of alerts.in.ua, which was still showing yellow;
-    - official oblast channels (Kyiv oblast, Vinnytsia, Kherson, Rivne): 49 of 52 September escalations agree within 3 min.
-  - **Tests.** Every red switch is a public channel post, and the backfilled switches match the poller within 10 min; painting red from the yellow start again fails the test.
-  - **Effect** on validation (`reports/e2/val_metrics_leaky_red.json` vs `val_metrics.json`): red-end went from no skill to +8.4% at 2 h [4.8, 10.8]; red-start fell to −6% to −22% beyond 3 h, so historical rates are served for it. The any-models were not retrained.
+    - coverage: 93.9% of red alerts get a switch time in training and validation, 97.4% in test (`reports/escalations_test.json`);
+    - live poller (from 10 Oct, so test window only; switches during poll gaps, e.g. a sleeping laptop, are skipped): 37 of 37 matched yellow → red switches within 10 min, median 39 s after the true switch, one 6.7 min ahead of alerts.in.ua, which was still showing yellow; red → yellow: 1 of 2 matched;
+    - official oblast channels (Kyiv oblast, Vinnytsia, Kherson, Rivne): 49 of 52 September escalations and 6 of 8 test-window ones agree within 3 min.
+  - **Tests.** Every red on/off switch is a public channel post at or after the alert start, and the backfilled switches match the poller within 10 min in both directions (the red → yellow case is skipped until the poller has 10 of them); painting red from the yellow start again fails the test.
+  - **Effect** on validation (`reports/e2/val_metrics_leaky_red.json` vs `val_metrics.json`): red-end went from no skill to +8.4% at 2 h [4.8, 10.8] (+8.8% [0.3, 16.8] after the red → yellow fix); red-start fell to −6% to −22% beyond 3 h, so historical rates are served for it.
 
 ## Limits
 
-- **The E2 test is short** (days, not weeks), so its confidence intervals are wide. That is why E1 exists.
+- **The E2 test is short** (10 days), so its confidence intervals are wide. That is why E1 exists.
+- **The E2 models are frozen at 27 Sep.** The new system changes weekly; a real service would retrain every week.
 - **Red start is served as historical rates.** No trained model beat them on validation: red is rare and there are ~2 weeks to learn from.
-- **Red switch times come from an unofficial channel.** It agrees with the live poller and with four official oblast channels, but its September accuracy rests on that agreement; 70% of its posts were edited later (we only see the final text); 6.1% of red alerts have no switch time and are treated as not red; red → yellow downgrades are not tracked.
+- **Red switch times come from an unofficial channel.** It agrees with the live poller and with four official oblast channels, but its September accuracy rests on that agreement; 70% of its posts were edited later (we only see the final text); 6.1% of red alerts have no switch time and are treated as not red; red → yellow drops are checked against only 2 poller observations so far.
 - **any-start is overconfident above ~60%** (forecast 65–72% within 1 h → observed ~50% on validation).
 - **The General Staff recalibrates yellow/red criteria weekly.** This non-stationarity is reported, not modelled.
 - **Telegram text was not used.** Checked against @kpszsu and @war_monitor history (6 Sep – 1 Oct):
